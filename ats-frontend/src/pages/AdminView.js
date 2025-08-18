@@ -4,7 +4,7 @@ const AdminView = () => {
   const [applications, setApplications] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/applications')
+  fetch('http://localhost:5000/api/applicants')
       .then((res) => res.json())
       .then((data) => setApplications(data))
       .catch((err) => console.error(err));

@@ -40,14 +40,13 @@ router.post('/apply', upload.single('resume'), async (req, res) => {
 // GET /api/applicants
 router.get('/', async (req, res) => {
   try {
-    const applicants = await Applicant.find().populate('jobId', 'title');
+    const applicants = await Applicant.find().populate('jobId');
     res.status(200).json(applicants);
   } catch (error) {
     console.error('Error fetching applicants:', error);
     res.status(500).json({ error: 'Failed to fetch applicants' });
   }
 });
-
 
 
 module.exports = router;

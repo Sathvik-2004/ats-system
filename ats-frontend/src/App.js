@@ -1,18 +1,22 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import ApplicationForm from './ApplicationForm';
-import SuccessPage from './SuccessPage';
+ import ApplicationForm from './components/ApplicationForm';
+ import SuccessPage from './pages/success';
 import AdminView from './pages/AdminView';
+
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<ApplicationForm />} />
-        <Route path="/success" element={<SuccessPage />} />
-        <Route path="/admin" element={<AdminView />} />
-      </Routes>
-    </Router>
+    <>
+      <div>Test Render</div>
+      <Router>
+        <Routes>
+          <Route path="/" element={<ApplicationForm />} />
+          <Route path="/success" element={<SuccessPage />} />
+          <Route path="/admin" element={<AdminView />} />
+        </Routes>
+      </Router>
+    </>
   );
 }
 
