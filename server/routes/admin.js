@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const ADMIN_USER = {
   username: 'admin',
-  password: 'admin123'
+  password: 'ksreddy@2004'
 };
 
 // ✅ Add this ping route for testing
