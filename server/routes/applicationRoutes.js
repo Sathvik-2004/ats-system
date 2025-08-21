@@ -49,4 +49,26 @@ router.get('/', async (req, res) => {
 });
 
 
+// PATCH /api/applicants/:id/status
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['Pending', 'Approved', 'Rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    const applicant = await Applicant.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!applicant) {
+      return res.status(404).json({ error: 'Applicant not found' });
+    }
+    res.status(200).json(applicant);
+  } catch (error) {
+    console.error('Error updating status:', error);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
 module.exports = router;

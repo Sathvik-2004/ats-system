@@ -4,11 +4,13 @@ import atsLogo from './ats-logo.svg';
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import ApplicationForm from './components/ApplicationForm';
+import Home from './components/Home';
 import Success from './pages/success';
 import AdminView from './pages/AdminView';
 import AdminLogin from './components/AdminLogin';
 import Spinner from './components/Spinner';
 import JobModal from './components/JobModal';
+import MyApplications from './pages/MyApplications';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 function Navbar({ dark }) {
@@ -81,6 +83,7 @@ function Navbar({ dark }) {
       </div>
   <Link to="/" style={navLinkStyle(location.pathname === '/')}> <span role="img" aria-label="home" style={{ fontSize: 28, verticalAlign: 'middle' }}>📊</span> {!collapsed && 'Home'} </Link>
   <Link to="/admin" style={navLinkStyle(location.pathname === '/admin')}> <span role="img" aria-label="admin-dashboard" style={{ fontSize: 28, verticalAlign: 'middle' }}>👤</span> {!collapsed && 'Admin Dashboard'} </Link>
+  <Link to="/my-applications" style={navLinkStyle(location.pathname === '/my-applications')}> <span role="img" aria-label="my-applications" style={{ fontSize: 28, verticalAlign: 'middle' }}>📄</span> {!collapsed && 'My Applications'} </Link>
   <Link to="/jobs" style={navLinkStyle(location.pathname === '/jobs')}> <span role="img" aria-label="jobs" style={{ fontSize: 28, verticalAlign: 'middle' }}>💼</span> {!collapsed && 'Jobs'} </Link>
   <Link to="/settings" style={navLinkStyle(location.pathname === '/settings')}> <span role="img" aria-label="settings" style={{ fontSize: 28, verticalAlign: 'middle' }}>⚙️</span> {!collapsed && 'Settings'} </Link>
     </nav>
@@ -134,30 +137,95 @@ function Jobs() {
       </div>
       {loading ? <Spinner /> : jobs.length === 0 ? (
         <p>No jobs available.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, width: '100%' }}>
-          {jobs.filter(job => job.title.toLowerCase().includes(search.toLowerCase())).map(job => (
-            <li key={job._id} style={{
-              background: '#f7f8fa',
-              marginBottom: 12,
-              padding: '16px 20px',
-              borderRadius: 8,
-              boxShadow: '0 2px 8px rgba(49,130,206,0.06)',
-              fontWeight: 500,
-              color: '#2d3748',
-              cursor: 'pointer',
-              transition: 'box-shadow 0.2s',
-            }} onClick={() => setSelectedJob(job)}>
-              {job.title}
-            </li>
-          ))}
-        </ul>
-      )}
+      ) : (() => {
+        const extraJobs = [
+          {
+            _id: 'extra1',
+            title: 'UI/UX Designer',
+            description: 'Create intuitive and visually appealing user interfaces for web and mobile platforms.',
+            salary: '700000',
+          },
+          {
+            _id: 'extra2',
+            title: 'Cloud Engineer',
+            description: 'Manage cloud infrastructure and deploy scalable solutions on AWS and Azure.',
+            salary: '900000',
+          },
+          {
+            _id: 'extra3',
+            title: 'QA Tester',
+            description: 'Ensure product quality through rigorous testing and automation.',
+            salary: '600000',
+          },
+          {
+            _id: 'extra4',
+            title: 'DevOps Engineer',
+            description: 'Automate deployment pipelines and monitor system reliability.',
+            salary: '950000',
+          },
+        ];
+        const allJobs = [
+          ...jobs.filter(job => job.title.toLowerCase().includes(search.toLowerCase())),
+          ...extraJobs.filter(job => job.title.toLowerCase().includes(search.toLowerCase())),
+        ];
+        return (
+          <ul style={{ listStyle: 'none', padding: 0, width: '100%' }}>
+            {allJobs.map(job => {
+              let desc = '';
+              let salary = job.salary;
+              if (job.title === 'Software Engineer') {
+                desc = 'Design, develop, and maintain scalable software solutions using modern technologies.';
+                salary = salary || '1200000';
+              } else if (job.title === 'Data Analyst') {
+                desc = 'Analyze complex datasets to provide actionable insights and support business decisions.';
+                salary = salary || '900000';
+              } else if (job.title === 'Frontend Developer') {
+                desc = 'Build responsive and interactive web interfaces using React and modern JS frameworks.';
+                salary = salary || '1000000';
+              } else if (job.title === 'Backend Developer') {
+                desc = 'Develop robust backend services and APIs to power web and mobile applications.';
+                salary = salary || '1100000';
+              } else if (job.title === 'Full Stack Developer') {
+                desc = 'Work across the stack to deliver end-to-end solutions for web platforms.';
+                salary = salary || '1300000';
+              } else {
+                desc = job.description || '';
+                salary = salary || '800000';
+              }
+              return (
+                <li key={job._id} style={{
+                  background: '#f7f8fa',
+                  marginBottom: 12,
+                  padding: '16px 20px',
+                  borderRadius: 8,
+                  boxShadow: '0 2px 8px rgba(49,130,206,0.06)',
+                  fontWeight: 500,
+                  color: '#2d3748',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <span style={{ fontSize: 18, fontWeight: 700 }}>{job.title}</span>
+                    <a href={`/apply?jobId=${job._id}`} className="action-btn approve" style={{ fontSize: 15, minWidth: 90, textAlign: 'center' }}>Apply</a>
+                  </div>
+                  <div style={{ color: '#4a5568', fontSize: 15 }}>{desc}</div>
+                  <div style={{ color: '#718096', fontSize: 14 }}>
+                    Company: Infinitra Tech &middot; Location: Hyderabad &middot; Salary: ₹{salary}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        );
+      })()}
       <JobModal job={selectedJob} onClose={() => setSelectedJob(null)} />
       <ToastContainer position="bottom-right" autoClose={2500} />
     </div>
-  );
-}
+    );
+  }
+
+  // Enhance How to Apply section in Home component
 
 function Settings({ dark, setDark }) {
   const [language, setLanguage] = useState('English');
@@ -311,7 +379,6 @@ function Settings({ dark, setDark }) {
     </div>
   );
 }
-
 function App() {
   const [dark, setDark] = useState(false);
   const [adminToken, setAdminToken] = useState(null);
@@ -331,11 +398,13 @@ function App() {
           <h1 style={{ fontSize: 32, fontWeight: 800, color: dark ? '#fff' : '#2563eb', letterSpacing: 1, margin: 0, fontFamily: 'Segoe UI, Arial, sans-serif' }}>Application Tracking System</h1>
         </div>
         <Routes>
-          <Route path="/" element={<ApplicationForm />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/apply" element={<ApplicationForm />} />
           <Route path="/success" element={<Success />} />
           <Route path="/admin" element={adminToken ? <AdminView token={adminToken} /> : <AdminLogin onLogin={setAdminToken} />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/settings" element={<Settings dark={dark} setDark={setDark} />} />
+          <Route path="/my-applications" element={<MyApplications />} />
         </Routes>
       </div>
       <footer style={{ position: 'fixed', left: 0, bottom: 0, width: 240, background: dark ? '#18181b' : '#f7f8fa', color: dark ? '#fff' : '#2563eb', fontWeight: 500, fontSize: 14, textAlign: 'center', padding: '12px 0', borderTop: '1px solid #e2e8f0', boxShadow: '0 -2px 8px rgba(49,130,206,0.06)', zIndex: 999, transition: 'background 0.3s, color 0.3s' }}>
