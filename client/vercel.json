@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "ats-frontend",
   "builds": [
     {
       "src": "package.json",
@@ -11,6 +10,10 @@
     }
   ],
   "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
     {
       "src": "/(.*)",
       "dest": "/index.html"
