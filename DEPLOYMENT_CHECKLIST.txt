@@ -1,0 +1,28 @@
+RAILWAY DEPLOYMENT CHECKLIST
+===========================
+
+□ 1. Select "Deploy from GitHub repo"
+□ 2. Choose repository: "Sathvik-2004/ats-system"
+□ 3. Set ROOT DIRECTORY to: "server" 
+□ 4. Click "Deploy"
+
+AFTER INITIAL DEPLOYMENT:
+□ 5. Go to Variables tab
+□ 6. Add these environment variables:
+
+NODE_ENV=production
+PORT=${{RAILWAY_PUBLIC_PORT}}
+MONGO_URI=mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster
+JWT_SECRET=ats_super_secure_jwt_secret_for_production_2024_change_this_key
+JWT_EXPIRES_IN=7d
+CLIENT_URL=http://localhost:3000
+
+□ 7. Redeploy if needed
+□ 8. Copy the generated Railway URL
+□ 9. Test API endpoints
+
+QUICK API TESTS (replace YOUR_RAILWAY_URL):
+- GET YOUR_RAILWAY_URL/api/jobs (should return jobs)
+- POST YOUR_RAILWAY_URL/api/auth/admin-login (admin login test)
+
+STATUS: READY FOR DEPLOYMENT ✅

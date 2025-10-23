@@ -1,0 +1,18 @@
+RAILWAY ENVIRONMENT VARIABLES
+============================
+
+Copy and paste these into Railway's environment variables section:
+
+NODE_ENV=production
+PORT=${{RAILWAY_PUBLIC_PORT}}
+MONGO_URI=mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster
+JWT_SECRET=ats_super_secure_jwt_secret_for_production_2024_change_this_key
+JWT_EXPIRES_IN=7d
+CLIENT_URL=http://localhost:3000
+
+IMPORTANT NOTES:
+- PORT uses Railway's special variable ${{RAILWAY_PUBLIC_PORT}}
+- CLIENT_URL will be updated later with your Vercel frontend URL
+- Make sure to set root directory to "server" during deployment
+- The build command should be: npm install
+- The start command should be: npm run production
