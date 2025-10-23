@@ -17,6 +17,6 @@
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://your-backend-app.herokuapp.com"
+    "REACT_APP_API_URL": "https://ats-backend-production.up.railway.app"
   }
 }
