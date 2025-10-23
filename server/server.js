@@ -30,6 +30,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check route for Railway
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'ATS Server is running', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Route registrations (✅ ONLY ONCE)
 app.use('/api/admin', adminRoutes);
 app.use('/api/jobs', jobRoutes);
