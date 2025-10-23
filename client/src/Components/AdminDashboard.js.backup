@@ -1,0 +1,620 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import './AdminDashboard.css';
+
+const AdminDashboard = () => {
+  const [applicants, setApplicants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState({});
+  const [selectedApplications, setSelectedApplications] = useState([]);
+  const [autoProcessing, setAutoProcessing] = useState(false);
+  const [bulkAction, setBulkAction] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  useEffect(() => {
+    fetchApplicants();
+  }, []);
+
+  const fetchApplicants = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/applicants');
+      console.log('Fetched applicants:', res.data);
+      setApplicants(res.data);
+    } catch (err) {
+      console.error('Failed to fetch applicants:', err);
+      toast.error('Failed to fetch applications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateApplicationStatus = async (applicationId, newStatus, notes = '') => {
+    setUpdatingStatus(prev => ({ ...prev, [applicationId]: true }));
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`http://localhost:5000/api/applicants/${applicationId}/status`, {
+        status: newStatus,
+        notes
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update local state
+      setApplicants(prev => prev.map(app => 
+        app._id === applicationId 
+          ? { ...app, status: newStatus, notes, reviewedAt: new Date() }
+          : app
+      ));
+
+      toast.success(`Application status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Failed to update application status');
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [applicationId]: false }));
+    }
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      'Pending': '#f59e0b',
+      'Under Review': '#3b82f6',
+      'Interview Scheduled': '#8b5cf6',
+      'Approved': '#10b981',
+      'Rejected': '#ef4444'
+    };
+    return colors[status] || '#6b7280';
+  };
+
+  const quickAccept = async (applicationId) => {
+    await updateApplicationStatus(applicationId, 'Approved', 'Manually accepted by admin');
+  };
+
+  const quickReject = async (applicationId) => {
+    await updateApplicationStatus(applicationId, 'Rejected', 'Manually rejected by admin');
+  };
+
+  const handleSelectApplication = (applicationId) => {
+    setSelectedApplications(prev => 
+      prev.includes(applicationId) 
+        ? prev.filter(id => id !== applicationId)
+        : [...prev, applicationId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const filteredApplicants = getFilteredApplicants();
+    if (selectedApplications.length === filteredApplicants.length) {
+      setSelectedApplications([]);
+    } else {
+      setSelectedApplications(filteredApplicants.map(app => app._id));
+    }
+  };
+
+  const handleBulkAction = async () => {
+    if (!bulkAction || selectedApplications.length === 0) {
+      toast.error('Please select applications and an action');
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to ${bulkAction.toLowerCase()} ${selectedApplications.length} application(s)?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('http://localhost:5000/api/applicants/bulk-update', {
+        applicationIds: selectedApplications,
+        status: bulkAction,
+        notes: `Bulk ${bulkAction.toLowerCase()} by admin`
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      toast.success(`${selectedApplications.length} applications ${bulkAction.toLowerCase()} successfully`);
+      setSelectedApplications([]);
+      setBulkAction('');
+      fetchApplicants();
+    } catch (error) {
+      toast.error('Failed to perform bulk action');
+      console.error('Bulk action error:', error);
+    }
+  };
+
+  const autoProcessApplications = async () => {
+    if (!window.confirm('Auto-process all pending applications based on predefined criteria?')) {
+      return;
+    }
+
+    setAutoProcessing(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('http://localhost:5000/api/applicants/auto-process', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      toast.success(`Auto-processed ${response.data.processed} applications`);
+      fetchApplicants();
+    } catch (error) {
+      toast.error('Auto-processing failed');
+      console.error('Auto-processing error:', error);
+    } finally {
+      setAutoProcessing(false);
+    }
+  };
+
+  const getFilteredApplicants = () => {
+    return applicants.filter(applicant => {
+      if (filterStatus === 'all') return true;
+      return applicant.status === filterStatus;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        minHeight: '100vh',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f7f9fb',
+      }}>
+        <div style={{
+          width: 40,
+          height: 40,
+          border: '4px solid #e2e8f0',
+          borderTop: '4px solid #3182ce',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+        }}>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      padding: '32px',
+      background: '#f7f9fb',
+      minHeight: '100vh',
+    }}>
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+      }}>
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+          padding: '32px',
+          marginBottom: '24px',
+        }}>
+          <h1 style={{
+            color: '#2d3748',
+            fontWeight: 700,
+            fontSize: 32,
+            marginBottom: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}>
+            <span style={{ fontSize: 36 }}>📋</span>
+            Admin Dashboard
+          </h1>
+          <p style={{
+            color: '#4a5568',
+            fontSize: 18,
+            marginBottom: 0,
+          }}>
+            Manage and review job applications
+          </p>
+        </div>
+
+        {/* Control Panel */}
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+          padding: '24px 32px',
+          marginBottom: '24px',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '16px',
+          }}>
+            {/* Filter Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <label style={{ fontWeight: 600, color: '#4a5568' }}>Filter:</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  background: '#fff',
+                }}
+              >
+                <option value="all">All Applications</option>
+                <option value="Pending">Pending Only</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Interview Scheduled">Interview Scheduled</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+
+            {/* Auto Process Button */}
+            <button
+              onClick={autoProcessApplications}
+              disabled={autoProcessing}
+              style={{
+                background: autoProcessing ? '#94a3b8' : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: 8,
+                fontWeight: 600,
+                cursor: autoProcessing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              {autoProcessing ? '⏳' : '🤖'}
+              {autoProcessing ? 'Processing...' : 'Auto Process'}
+            </button>
+          </div>
+
+          {/* Bulk Actions */}
+          {selectedApplications.length > 0 && (
+            <div style={{
+              marginTop: '16px',
+              padding: '16px',
+              background: '#f8fafc',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span style={{ fontWeight: 600, color: '#4a5568' }}>
+                {selectedApplications.length} application(s) selected
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <select
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    fontSize: 14,
+                  }}
+                >
+                  <option value="">Select Action</option>
+                  <option value="Approved">Approve All</option>
+                  <option value="Rejected">Reject All</option>
+                  <option value="Under Review">Move to Review</option>
+                </select>
+                <button
+                  onClick={handleBulkAction}
+                  disabled={!bulkAction}
+                  style={{
+                    background: bulkAction ? '#ef4444' : '#94a3b8',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '6px 16px',
+                    borderRadius: 6,
+                    fontWeight: 600,
+                    cursor: bulkAction ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {getFilteredApplicants().length === 0 ? (
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+            padding: '48px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              fontSize: 64,
+              marginBottom: 16,
+            }}>📝</div>
+            <h3 style={{
+              color: '#2d3748',
+              fontWeight: 600,
+              fontSize: 24,
+              marginBottom: 8,
+            }}>
+              {filterStatus === 'all' ? 'No Applications Yet' : `No ${filterStatus} Applications`}
+            </h3>
+            <p style={{
+              color: '#4a5568',
+              fontSize: 16,
+            }}>
+              {filterStatus === 'all' 
+                ? 'Applications will appear here once candidates start applying for jobs.'
+                : `No applications with ${filterStatus} status found.`
+              }
+            </p>
+          </div>
+        ) : (
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              background: 'linear-gradient(90deg,#3182ce 0%,#00bcd4 100%)',
+              color: '#fff',
+              padding: '20px 32px',
+              fontWeight: 600,
+              fontSize: 18,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span>Applications ({getFilteredApplicants().length})</span>
+              <button
+                onClick={handleSelectAll}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                {selectedApplications.length === getFilteredApplicants().length ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+              }}>
+                <thead>
+                  <tr style={{
+                    background: '#f8fafc',
+                    borderBottom: '2px solid #e2e8f0',
+                  }}>
+                    <th style={{
+                      padding: '16px 24px',
+                      textAlign: 'center',
+                      color: '#2d3748',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      width: '50px',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedApplications.length === getFilteredApplicants().length && getFilteredApplicants().length > 0}
+                        onChange={handleSelectAll}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
+                    <th style={{
+                      padding: '16px 24px',
+                      textAlign: 'left',
+                      color: '#2d3748',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}>Name</th>
+                    <th style={{
+                      padding: '16px 24px',
+                      textAlign: 'left',
+                      color: '#2d3748',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}>Email</th>
+                    <th style={{
+                      padding: '16px 24px',
+                      textAlign: 'left',
+                      color: '#2d3748',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}>Job Title</th>
+                    <th style={{
+                      padding: '16px 24px',
+                      textAlign: 'center',
+                      color: '#2d3748',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}>Status</th>
+                    <th style={{
+                      padding: '16px 24px',
+                      textAlign: 'center',
+                      color: '#2d3748',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}>Resume</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getFilteredApplicants().map((applicant, index) => (
+                    <tr key={applicant._id} style={{
+                      borderBottom: '1px solid #e2e8f0',
+                      background: index % 2 === 0 ? '#fff' : '#f8fafc',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.target.parentElement.style.background = '#f1f5f9'}
+                    onMouseLeave={(e) => e.target.parentElement.style.background = index % 2 === 0 ? '#fff' : '#f8fafc'}
+                    >
+                      <td style={{
+                        padding: '16px 24px',
+                        textAlign: 'center',
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedApplications.includes(applicant._id)}
+                          onChange={() => handleSelectApplication(applicant._id)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td style={{
+                        padding: '16px 24px',
+                        color: '#2d3748',
+                        fontWeight: 500,
+                      }}>
+                        <div>{applicant.name}</div>
+                        <div style={{
+                          fontSize: 12,
+                          color: '#6b7280',
+                          marginTop: 4,
+                        }}>
+                          Applied: {new Date(applicant.appliedAt).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td style={{
+                        padding: '16px 24px',
+                        color: '#4a5568',
+                      }}>{applicant.email}</td>
+                      <td style={{
+                        padding: '16px 24px',
+                        color: '#4a5568',
+                      }}>{applicant.jobId?.title || 'N/A'}</td>
+                      <td style={{
+                        padding: '16px 24px',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{ marginBottom: 8 }}>
+                          <span style={{
+                            background: getStatusColor(applicant.status) + '20',
+                            color: getStatusColor(applicant.status),
+                            padding: '4px 8px',
+                            borderRadius: 12,
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}>
+                            {applicant.status}
+                          </span>
+                        </div>
+                        <select
+                          value={applicant.status}
+                          onChange={(e) => updateApplicationStatus(applicant._id, e.target.value)}
+                          disabled={updatingStatus[applicant._id]}
+                          style={{
+                            padding: '4px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 4,
+                            fontSize: 12,
+                            background: '#fff',
+                            cursor: updatingStatus[applicant._id] ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Under Review">Under Review</option>
+                          <option value="Interview Scheduled">Interview Scheduled</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                      </td>
+                      <td style={{
+                        padding: '16px 24px',
+                        textAlign: 'center',
+                      }}>
+                        <a
+                          href={`http://localhost:5000/uploads/${applicant.resume}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            background: 'linear-gradient(90deg,#3182ce 0%,#00bcd4 100%)',
+                            color: '#fff',
+                            padding: '8px 16px',
+                            borderRadius: 6,
+                            textDecoration: 'none',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            transition: 'opacity 0.2s',
+                            display: 'inline-block',
+                          }}
+                          onMouseEnter={(e) => e.target.style.opacity = '0.9'}
+                          onMouseLeave={(e) => e.target.style.opacity = '1'}
+                        >
+                          📄 View Resume
+                        </a>
+                      </td>
+                      <td style={{
+                        padding: '16px 24px',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => updateApplicationStatus(applicant._id, 'Approved')}
+                            disabled={updatingStatus[applicant._id] || applicant.status === 'Approved'}
+                            style={{
+                              background: applicant.status === 'Approved' ? '#d1d5db' : '#10b981',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: 4,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              cursor: updatingStatus[applicant._id] || applicant.status === 'Approved' ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            ✓ Accept
+                          </button>
+                          <button
+                            onClick={() => updateApplicationStatus(applicant._id, 'Rejected')}
+                            disabled={updatingStatus[applicant._id] || applicant.status === 'Rejected'}
+                            style={{
+                              background: applicant.status === 'Rejected' ? '#d1d5db' : '#ef4444',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: 4,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              cursor: updatingStatus[applicant._id] || applicant.status === 'Rejected' ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            ✗ Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;

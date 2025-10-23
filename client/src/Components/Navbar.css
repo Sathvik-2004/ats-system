@@ -1,18 +1,1 @@
-/* client/src/Components/Navbar.css */
-.navbar {
-  background-color: #222;
-  padding: 10px;
-}
-.navbar ul {
-  list-style: none;
-  display: flex;
-  gap: 20px;
-}
-.navbar a {
-  color: white;
-  text-decoration: none;
-  font-weight: bold;
-}
-.navbar a:hover {
-  text-decoration: underline;
-}
+/* Navigation styles are now handled inline for better control */
