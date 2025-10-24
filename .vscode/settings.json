@@ -1,5 +1,19 @@
 {
     "postman.settings.dotenv-detection-notification-visibility": false,
     "git.ignoreLimitWarning": true,
-    "livePreview.customExternalBrowser": "Chrome"
+    "livePreview.customExternalBrowser": "Chrome",
+    "typescript.validate.enable": false,
+    "javascript.validate.enable": true,
+    "javascript.preferences.checkJs": false,
+    "typescript.preferences.checkJs": false,
+    "js/ts.implicitProjectConfig.checkJs": false,
+    "typescript.suggest.autoImports": false,
+    "javascript.suggest.autoImports": true,
+    "typescript.disableAutomaticTypeAcquisition": true,
+    "emmet.includeLanguages": {
+        "javascript": "javascriptreact"
+    },
+    "files.associations": {
+        "*.js": "javascript"
+    }
 }
