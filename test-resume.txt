@@ -1,0 +1,17 @@
+Test Resume Content
+==================
+
+Name: Test User
+Email: testuser@example.com
+Experience: 3 years in software development
+
+Skills:
+- JavaScript
+- React
+- Node.js
+- MongoDB
+
+Education:
+- Computer Science Degree
+
+This is a test resume file for application testing.
