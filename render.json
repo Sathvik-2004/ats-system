@@ -3,8 +3,9 @@
   "type": "web",
   "env": "node",
   "plan": "free",
-  "buildCommand": "npm install",
-  "startCommand": "node server.js",
+  "buildCommand": "cd server && npm install",
+  "startCommand": "cd server && node server.js",
+  "rootDir": ".",
   "envVars": [
     {
       "key": "NODE_ENV",
