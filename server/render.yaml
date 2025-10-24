@@ -1,0 +1,11 @@
+# Build and start commands for Render
+build = "npm install"
+start = "node server.js"
+
+# Environment
+[env]
+NODE_ENV = "production"
+
+# Health check
+[health_check]
+path = "/api/jobs"
