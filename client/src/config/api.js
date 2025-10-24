@@ -23,6 +23,9 @@ export const API_CONFIG = {
     // Application endpoints
     APPLICATIONS: `${API_BASE_URL}/api/applications`,
     APPLICANTS: `${API_BASE_URL}/api/applicants`,
+  // User-specific endpoints
+  USER_APPLICATIONS: `${API_BASE_URL}/api/auth/my-applications`,
+  USER_APPLICATION_STATS: `${API_BASE_URL}/api/auth/application-stats`,
     
     // Upload endpoints
     UPLOADS: `${API_BASE_URL}/uploads`,

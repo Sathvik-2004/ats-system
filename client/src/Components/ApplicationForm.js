@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Spinner from './Spinner';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_CONFIG from '../config/api';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './ApplicationForm.css';
@@ -25,7 +26,7 @@ const ApplicationForm = () => {
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/jobs");
+        const res = await axios.get(API_CONFIG.ENDPOINTS.JOBS);
         setJobs(res.data);
       } catch (err) {
         toast.error("Failed to fetch jobs");
@@ -115,7 +116,7 @@ const ApplicationForm = () => {
         }
       }
     };
-    xhrRef.current.open('POST', 'http://localhost:5000/api/applicants/apply');
+  xhrRef.current.open('POST', `${API_CONFIG.ENDPOINTS.APPLICANTS}/apply`);
     if (token) {
       xhrRef.current.setRequestHeader('Authorization', `Bearer ${token}`);
     }
