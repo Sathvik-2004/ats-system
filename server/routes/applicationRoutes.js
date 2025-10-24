@@ -51,9 +51,17 @@ const authenticateAdmin = (req, res, next) => {
 };
 
 // Set up storage for uploaded resumes
+const fs = require('fs');
+const uploadsDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads' : 'uploads';
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/'); // ✅ Make sure this folder exists
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -65,10 +73,19 @@ const upload = multer({ storage: storage });
 // POST /api/applicants/apply
 router.post('/apply', authenticateToken, upload.single('resume'), async (req, res) => {
   try {
+    console.log('📝 Application submission attempt:', req.body);
+    console.log('📎 File upload info:', req.file);
+    
     const { name, email, jobId } = req.body;
+    
+    if (!req.file) {
+      console.error('❌ No file uploaded');
+      return res.status(400).json({ error: 'Resume file is required' });
+    }
+    
     const resume = req.file.filename;
 
-    console.log('📝 New application submission:', { name, email, jobId, userId: req.user?.userId });
+    console.log('📝 New application submission:', { name, email, jobId, userId: req.user?.userId, resume });
 
     const newApplicant = new Applicant({
       name,

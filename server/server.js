@@ -19,7 +19,8 @@ app.use(cors());
 app.use(express.json());
 
 // Serve uploads folder statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const uploadsDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads' : path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadsDir));
 
 // Log incoming requests
 app.use((req, res, next) => {
@@ -28,16 +29,6 @@ app.use((req, res, next) => {
     console.log('📦 Request Body:', JSON.stringify(req.body, null, 2));
   }
   next();
-});
-
-// Health check route for Railway
-app.get('/', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    message: 'ATS Server is running', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
 });
 
 // Route registrations (✅ ONLY ONCE)
