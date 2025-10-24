@@ -79,6 +79,20 @@ const upload = multer({
   }
 });
 
+// POST /api/applicants/test-submit (basic test without authentication)
+router.post('/test-submit', async (req, res) => {
+  try {
+    console.log('🧪 Test submission received:', req.body);
+    res.status(200).json({ 
+      message: 'Test endpoint working!', 
+      received: req.body 
+    });
+  } catch (error) {
+    console.error('💥 Test error:', error);
+    res.status(500).json({ error: 'Test failed', details: error.message });
+  }
+});
+
 // POST /api/applicants/apply-simple (for testing without file)
 router.post('/apply-simple', authenticateToken, async (req, res) => {
   try {
@@ -106,42 +120,43 @@ router.post('/apply-simple', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/applicants/apply
-router.post('/apply', authenticateToken, upload.single('resume'), async (req, res) => {
+// POST /api/applicants/apply (temporarily without file upload)
+router.post('/apply', authenticateToken, async (req, res) => {
   try {
     console.log('📝 Application submission attempt:', req.body);
-    console.log('📎 File upload info:', req.file);
+    console.log('� User from token:', req.user);
     
     const { name, email, jobId } = req.body;
     
-    // Handle case where file upload fails in production
-    let resume = 'no-resume-uploaded.txt';
-    if (req.file) {
-      resume = req.file.filename;
-    } else {
-      console.warn('⚠️ No file uploaded, using placeholder');
+    if (!name || !email || !jobId) {
+      return res.status(400).json({ error: 'Name, email, and jobId are required' });
     }
-
-    console.log('📝 New application submission:', { name, email, jobId, userId: req.user?.userId, resume });
+    
+    console.log('📝 New application submission:', { name, email, jobId, userId: req.user?.userId });
 
     const newApplicant = new Applicant({
       name,
       email,
-      resume,
+      resume: 'application-without-file.txt',
       jobId,
       userId: req.user?.userId // Link to authenticated user if available
     });
 
-    await newApplicant.save();
-    console.log('✅ Application saved successfully with ID:', newApplicant._id);
+    const savedApplicant = await newApplicant.save();
+    console.log('✅ Application saved successfully with ID:', savedApplicant._id);
     
     res.status(200).json({ 
       message: 'Application submitted successfully!',
-      applicationId: newApplicant._id 
+      applicationId: savedApplicant._id,
+      applicant: savedApplicant
     });
   } catch (error) {
     console.error('💥 Error submitting application:', error);
-    res.status(500).json({ error: 'Failed to submit application' });
+    console.error('Full error details:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to submit application',
+      details: error.message 
+    });
   }
 });
 
