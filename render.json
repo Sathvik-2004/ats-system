@@ -3,8 +3,8 @@
   "type": "web",
   "env": "node",
   "plan": "free",
-  "buildCommand": "cd server && npm install",
-  "startCommand": "cd server && node server.js",
+  "buildCommand": "cd server && npm install --production",
+  "startCommand": "cd server && node server-render.js",
   "rootDir": ".",
   "envVars": [
     {
@@ -12,5 +12,5 @@
       "value": "production"
     }
   ],
-  "healthCheckPath": "/api/jobs"
+  "healthCheckPath": "/health"
 }
