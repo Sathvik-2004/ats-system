@@ -1,8 +1,38 @@
-// ABSOLUTE MINIMAL SERVER FOR RENDER
+// BASIC SERVER WITH DATABASE CONNECTION FOR RENDER
 const express = require('express');
+const mongoose = require('mongoose');
 const app = express();
 
-console.log('🚀 BASIC SERVER STARTING...');
+console.log('🚀 BASIC SERVER WITH DATABASE STARTING...');
+
+// MongoDB Connection
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster';
+
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('✅ Connected to MongoDB Atlas'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
+
+// Simple User schema
+const UserSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  password: String,
+  role: { type: String, default: 'user' }
+});
+
+// Simple Application schema
+const ApplicationSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  phone: String,
+  position: String,
+  experience: String,
+  status: { type: String, default: 'pending' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', UserSchema);
+const Application = mongoose.model('Application', ApplicationSchema);
 
 // Basic middleware
 app.use(express.json());
@@ -33,13 +63,24 @@ app.get('/', (req, res) => {
 });
 
 // Basic application endpoint
-app.post('/api/applicants/apply', (req, res) => {
+app.post('/api/applicants/apply', async (req, res) => {
   console.log('📝 Application received:', req.body);
-  res.json({ 
-    success: true, 
-    message: 'Application received',
-    data: req.body 
-  });
+  try {
+    const application = new Application(req.body);
+    await application.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Application submitted successfully',
+      data: application 
+    });
+  } catch (error) {
+    console.error('Error saving application:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to submit application' 
+    });
+  }
 });
 
 // Test endpoint
@@ -56,72 +97,127 @@ app.get('/api/jobs', (req, res) => {
   ]);
 });
 
-app.post('/api/auth/user-register', (req, res) => {
+app.post('/api/auth/user-register', async (req, res) => {
   console.log('👤 User registration:', req.body);
-  const { name, email, password } = req.body;
-  
-  if (name && email && password) {
+  try {
+    const { name, email, password } = req.body;
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+    
+    // Create new user
+    const user = new User({ name, email, password, role: 'user' });
+    await user.save();
+    
     res.json({ 
       success: true,
       message: 'User registered successfully',
       user: { name, email }
     });
-  } else {
-    res.status(400).json({ 
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ 
       success: false,
-      message: 'Please provide name, email, and password'
+      message: 'Registration failed'
     });
   }
 });
 
-app.post('/api/auth/user-login', (req, res) => {
+app.post('/api/auth/user-login', async (req, res) => {
   console.log('👤 User login attempt:', req.body);
-  const { email, password } = req.body;
-  
-  // Simple user login for testing
-  if (email === 'user@test.com' && password === 'user123') {
-    res.json({ 
-      success: true,
-      message: 'User login successful',
-      token: 'user-token-123',
-      user: { email: 'user@test.com', name: 'Test User' }
-    });
-  } else {
-    res.status(401).json({ 
+  try {
+    const { email, password } = req.body;
+    
+    // Find user in database
+    const user = await User.findOne({ email, password });
+    if (user) {
+      res.json({ 
+        success: true,
+        message: 'User login successful',
+        token: 'user-token-' + user._id,
+        user: { email: user.email, name: user.name, id: user._id }
+      });
+    } else {
+      res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
       success: false,
-      message: 'Invalid user credentials'
+      message: 'Login failed'
     });
   }
 });
 
-app.post('/api/auth/admin-login', (req, res) => {
+app.post('/api/auth/admin-login', async (req, res) => {
   console.log('👨‍💼 Admin login attempt:', req.body);
-  const { username, password } = req.body;
-  
-  // Simple hardcoded admin credentials
-  if (username === 'admin' && password === 'admin123') {
-    res.json({ 
-      success: true,
-      message: 'Admin login successful',
-      token: 'admin-token-123',
-      admin: { username: 'admin', role: 'admin' }
+  try {
+    const { username, password } = req.body;
+    
+    // Find admin user in database
+    const admin = await User.findOne({ 
+      $or: [
+        { email: username, role: 'admin' },
+        { name: username, role: 'admin' }
+      ],
+      password: password 
     });
-  } else {
-    res.status(401).json({ 
+    
+    if (admin) {
+      res.json({ 
+        success: true,
+        message: 'Admin login successful',
+        token: 'admin-token-' + admin._id,
+        admin: { username: admin.name || admin.email, role: 'admin', id: admin._id }
+      });
+    } else {
+      res.status(401).json({ 
+        success: false,
+        message: 'Invalid admin credentials. Please check your username and password.'
+      });
+    }
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ 
       success: false,
-      message: 'Invalid admin credentials'
+      message: 'Admin login failed'
     });
   }
 });
 
-app.get('/api/auth/my-applications', (req, res) => {
+app.get('/api/auth/my-applications', async (req, res) => {
   console.log('📋 My applications requested');
-  res.json([]);
+  try {
+    const applications = await Application.find().sort({ createdAt: -1 });
+    res.json(applications);
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    res.json([]);
+  }
 });
 
-app.get('/api/auth/application-stats', (req, res) => {
+app.get('/api/auth/application-stats', async (req, res) => {
   console.log('📊 Application stats requested');
-  res.json({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  try {
+    const total = await Application.countDocuments();
+    const pending = await Application.countDocuments({ status: 'pending' });
+    const approved = await Application.countDocuments({ status: 'approved' });
+    const rejected = await Application.countDocuments({ status: 'rejected' });
+    
+    res.json({ total, pending, approved, rejected });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.json({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  }
 });
 
 // Catch all API routes
