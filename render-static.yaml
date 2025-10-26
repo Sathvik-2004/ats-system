@@ -1,0 +1,12 @@
+# Render Static Site Configuration for React App
+buildCommand: cd client && npm install && npm run build
+publishDir: client/build
+envVars:
+  - key: REACT_APP_API_URL
+    value: https://ats-system-u2nr.onrender.com
+  - key: CI
+    value: false
+  - key: GENERATE_SOURCEMAP
+    value: false
+  - key: NODE_ENV
+    value: production
