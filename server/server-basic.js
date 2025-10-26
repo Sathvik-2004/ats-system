@@ -56,14 +56,62 @@ app.get('/api/jobs', (req, res) => {
   ]);
 });
 
+app.post('/api/auth/user-register', (req, res) => {
+  console.log('👤 User registration:', req.body);
+  const { name, email, password } = req.body;
+  
+  if (name && email && password) {
+    res.json({ 
+      success: true,
+      message: 'User registered successfully',
+      user: { name, email }
+    });
+  } else {
+    res.status(400).json({ 
+      success: false,
+      message: 'Please provide name, email, and password'
+    });
+  }
+});
+
 app.post('/api/auth/user-login', (req, res) => {
   console.log('👤 User login attempt:', req.body);
-  res.json({ message: 'Login endpoint (test mode)', user: null });
+  const { email, password } = req.body;
+  
+  // Simple user login for testing
+  if (email === 'user@test.com' && password === 'user123') {
+    res.json({ 
+      success: true,
+      message: 'User login successful',
+      token: 'user-token-123',
+      user: { email: 'user@test.com', name: 'Test User' }
+    });
+  } else {
+    res.status(401).json({ 
+      success: false,
+      message: 'Invalid user credentials'
+    });
+  }
 });
 
 app.post('/api/auth/admin-login', (req, res) => {
   console.log('👨‍💼 Admin login attempt:', req.body);
-  res.json({ message: 'Admin login endpoint (test mode)', admin: null });
+  const { username, password } = req.body;
+  
+  // Simple hardcoded admin credentials
+  if (username === 'admin' && password === 'admin123') {
+    res.json({ 
+      success: true,
+      message: 'Admin login successful',
+      token: 'admin-token-123',
+      admin: { username: 'admin', role: 'admin' }
+    });
+  } else {
+    res.status(401).json({ 
+      success: false,
+      message: 'Invalid admin credentials'
+    });
+  }
 });
 
 app.get('/api/auth/my-applications', (req, res) => {
