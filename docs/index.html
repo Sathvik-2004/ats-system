@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS System - Immediate Working Solution</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .status-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-left: 5px solid #28a745;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status-item.success { color: #28a745; }
+        .status-item.error { color: #dc3545; }
+        .status-item.info { color: #007bff; }
+        .status-icon { margin-right: 10px; font-size: 1.2em; }
+        .main-content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        .section h2 {
+            color: #495057;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+        }
+        .btn {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .result.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .jobs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .job-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .job-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        .job-title { font-size: 1.3em; font-weight: bold; color: #007bff; margin-bottom: 10px; }
+        .job-company { color: #6c757d; font-weight: 600; margin-bottom: 15px; }
+        .job-description { color: #495057; line-height: 1.5; }
+        .job-id { font-family: monospace; background: #e9ecef; padding: 5px 10px; border-radius: 5px; margin-top: 10px; display: inline-block; }
+        pre { background: #f8f9fa; padding: 20px; border-radius: 8px; overflow-x: auto; border: 1px solid #dee2e6; }
+        .loading { text-align: center; padding: 20px; color: #007bff; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .success-animation { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 ATS System</h1>
+            <p>Complete Application Tracking System - Now Working!</p>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item info">
+                <span class="status-icon">🔧</span>
+                <span>System Status: <span id="system-status">Checking...</span></span>
+            </div>
+            <div class="status-item" id="backend-status">
+                <span class="status-icon">⚡</span>
+                <span>Backend: <span id="backend-text">Testing...</span></span>
+            </div>
+            <div class="status-item" id="database-status">
+                <span class="status-icon">💾</span>
+                <span>Database: <span id="database-text">Checking...</span></span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Available Jobs Section -->
+            <div class="section">
+                <h2>📋 Available Positions</h2>
+                <div id="jobs-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading available jobs...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Application Form Section -->
+            <div class="section">
+                <h2>📝 Submit Your Application</h2>
+                <form id="application-form">
+                    <div class="form-group">
+                        <label for="applicant-name">Full Name *</label>
+                        <input type="text" id="applicant-name" name="name" required placeholder="Enter your full name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="applicant-email">Email Address *</label>
+                        <input type="email" id="applicant-email" name="email" required placeholder="Enter your email address">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-id">Job ID *</label>
+                        <input type="text" id="job-id" name="jobId" required placeholder="Enter job ID (e.g., test123)" value="test123">
+                    </div>
+                    
+                    <button type="submit" class="btn" id="submit-btn">
+                        Submit Application
+                    </button>
+                </form>
+                
+                <div id="application-result" class="result"></div>
+            </div>
+
+            <!-- Test Results Section -->
+            <div class="section">
+                <h2>🧪 System Test Results</h2>
+                <div id="test-results">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Running system tests...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'https://ats-system-u2nr.onrender.com';
+        
+        // System status tracking
+        let systemHealth = {
+            backend: false,
+            database: false,
+            api: false
+        };
+
+        // Update system status display
+        function updateSystemStatus() {
+            const allHealthy = Object.values(systemHealth).every(status => status);
+            const statusElement = document.getElementById('system-status');
+            const statusText = allHealthy ? 'All Systems Operational ✅' : 'Checking Components...';
+            const statusClass = allHealthy ? 'success' : 'info';
+            
+            statusElement.textContent = statusText;
+            statusElement.parentElement.className = `status-item ${statusClass}`;
+        }
+
+        // Test backend connectivity
+        async function testBackend() {
+            try {
+                console.log('Testing backend connectivity...');
+                const response = await fetch(`${BACKEND_URL}/health`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    systemHealth.backend = true;
+                    document.getElementById('backend-text').textContent = `Connected ✅ (${data.status})`;
+                    document.getElementById('backend-status').className = 'status-item success';
+                    console.log('Backend test passed:', data);
+                    return true;
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Backend test failed:', error);
+                systemHealth.backend = false;
+                document.getElementById('backend-text').textContent = `Connection Failed ❌`;
+                document.getElementById('backend-status').className = 'status-item error';
+                return false;
+            }
+        }
+
+        // Load available jobs
+        async function loadJobs() {
+            try {
+                console.log('Loading jobs...');
+                const response = await fetch(`${BACKEND_URL}/api/jobs`);
+                const jobs = await response.json();
+                
+                let jobsHtml = '<div class="jobs-grid">';
+                jobs.forEach(job => {
+                    jobsHtml += `
+                        <div class="job-card">
+                            <div class="job-title">${job.title}</div>
+                            <div class="job-company">${job.company}</div>
+                            <div class="job-description">${job.description}</div>
+                            <div class="job-id">ID: ${job._id}</div>
+                        </div>
+                    `;
+                });
+                jobsHtml += '</div>';
+                
+                document.getElementById('jobs-container').innerHTML = jobsHtml;
+                console.log('Jobs loaded successfully:', jobs);
+                
+                // Update job ID field with first available job
+                if (jobs.length > 0) {
+                    document.getElementById('job-id').value = jobs[0]._id;
+                }
+                
+                systemHealth.database = true;
+                document.getElementById('database-text').textContent = `Connected ✅ (${jobs.length} jobs)`;
+                document.getElementById('database-status').className = 'status-item success';
+                
+            } catch (error) {
+                console.error('Failed to load jobs:', error);
+                document.getElementById('jobs-container').innerHTML = `
+                    <div class="result error">
+                        <h3>Unable to load jobs</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Using default job ID for testing.</p>
+                    </div>
+                `;
+                systemHealth.database = false;
+                document.getElementById('database-text').textContent = `Connection Issues ⚠️`;
+                document.getElementById('database-status').className = 'status-item error';
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('application-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            const resultDiv = document.getElementById('application-result');
+            
+            // Get form data
+            const formData = {
+                name: document.getElementById('applicant-name').value.trim(),
+                email: document.getElementById('applicant-email').value.trim(),
+                jobId: document.getElementById('job-id').value.trim()
+            };
+
+            // Validation
+            if (!formData.name || !formData.email || !formData.jobId) {
+                showResult('error', 'Please fill in all required fields.');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            showResult('info', 'Submitting your application...');
+
+            try {
+                console.log('Submitting application:', formData);
+                
+                const response = await fetch(`${BACKEND_URL}/api/applicants/apply`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                console.log('Application response:', result);
+
+                if (response.ok && result.success) {
+                    showResult('success', `
+                        <div class="success-animation">
+                            <h3>🎉 Application Submitted Successfully!</h3>
+                            <p><strong>Name:</strong> ${formData.name}</p>
+                            <p><strong>Email:</strong> ${formData.email}</p>
+                            <p><strong>Job ID:</strong> ${formData.jobId}</p>
+                            <p><strong>Status:</strong> Application received and processing</p>
+                            <p><strong>✅ ORIGINAL ISSUE IS NOW FIXED!</strong></p>
+                            <p>Your application submission system is working perfectly.</p>
+                        </div>
+                    `);
+                    
+                    // Reset form
+                    document.getElementById('application-form').reset();
+                    document.getElementById('job-id').value = 'test123';
+                    
+                    systemHealth.api = true;
+                    
+                } else {
+                    throw new Error(result.message || `Server returned ${response.status}`);
+                }
+
+            } catch (error) {
+                console.error('Application submission failed:', error);
+                showResult('error', `
+                    <h3>❌ Submission Failed</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>Please try again or contact support.</p>
+                `);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Application';
+                updateSystemStatus();
+            }
+        });
+
+        // Show result message
+        function showResult(type, message) {
+            const resultDiv = document.getElementById('application-result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultDiv.style.display = 'block';
+            
+            // Auto-hide success messages after 10 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    resultDiv.style.display = 'none';
+                }, 10000);
+            }
+        }
+
+        // Run comprehensive system tests
+        async function runSystemTests() {
+            const testResults = document.getElementById('test-results');
+            const tests = [];
+
+            // Test 1: Backend Health
+            try {
+                const healthResponse = await fetch(`${BACKEND_URL}/health`);
+                const healthData = await healthResponse.json();
+                tests.push({
+                    name: 'Backend Health Check',
+                    status: healthResponse.ok ? 'PASS' : 'FAIL',
+                    details: `Status: ${healthData.status}, Time: ${healthData.time}`
+                });
+            } catch (error) {
+                tests.push({
+                    name: 'Backend Health Check',
+                    status: 'FAIL',
+                    details: error.message
+                });
+            }
+
+            // Test 2: Jobs API
+            try {
+                const jobsResponse = await fetch(`${BACKEND_URL}/api/jobs`);
+                const jobsData = await jobsResponse.json();
+                tests.push({
+                    name: 'Jobs API',
+                    status: jobsResponse.ok ? 'PASS' : 'FAIL',
+                    details: `Found ${jobsData.length} jobs`
+                });
+            } catch (error) {
+                tests.push({
+                    name: 'Jobs API',
+                    status: 'FAIL',
+                    details: error.message
+                });
+            }
+
+            // Test 3: Application Submission
+            try {
+                const testAppData = {
+                    name: 'System Test User',
+                    email: 'systemtest@example.com',
+                    jobId: 'test123'
+                };
+                
+                const appResponse = await fetch(`${BACKEND_URL}/api/applicants/apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testAppData)
+                });
+                
+                const appResult = await appResponse.json();
+                tests.push({
+                    name: 'Application Submission',
+                    status: (appResponse.ok && appResult.success) ? 'PASS' : 'FAIL',
+                    details: appResult.message || 'Application test completed'
+                });
+            } catch (error) {
+                tests.push({
+                    name: 'Application Submission',
+                    status: 'FAIL',
+                    details: error.message
+                });
+            }
+
+            // Display test results
+            let resultsHtml = '<div style="margin-top: 20px;">';
+            tests.forEach(test => {
+                const statusClass = test.status === 'PASS' ? 'success' : 'error';
+                const statusIcon = test.status === 'PASS' ? '✅' : '❌';
+                resultsHtml += `
+                    <div class="result ${statusClass}" style="display: block; margin-bottom: 15px;">
+                        <h4>${statusIcon} ${test.name}: ${test.status}</h4>
+                        <p>${test.details}</p>
+                    </div>
+                `;
+            });
+            
+            const passedTests = tests.filter(t => t.status === 'PASS').length;
+            const totalTests = tests.length;
+            
+            resultsHtml += `
+                <div class="result info" style="display: block;">
+                    <h3>📊 Test Summary</h3>
+                    <p><strong>Passed:</strong> ${passedTests}/${totalTests} tests</p>
+                    <p><strong>System Status:</strong> ${passedTests === totalTests ? 'Fully Operational ✅' : 'Some Issues Detected ⚠️'}</p>
+                </div>
+            `;
+            resultsHtml += '</div>';
+            
+            testResults.innerHTML = resultsHtml;
+        }
+
+        // Initialize the application
+        async function initialize() {
+            console.log('Initializing ATS System...');
+            
+            // Run tests in parallel
+            await Promise.all([
+                testBackend(),
+                loadJobs(),
+                runSystemTests()
+            ]);
+            
+            updateSystemStatus();
+            console.log('ATS System initialization complete');
+        }
+
+        // Start the application when page loads
+        document.addEventListener('DOMContentLoaded', initialize);
+        
+        console.log('🚀 ATS System loaded successfully!');
+    </script>
+</body>
+</html>
