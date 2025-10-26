@@ -1,0 +1,14 @@
+# Render Static Site Configuration
+buildCommand: npm run build
+publishDir: build
+envVars:
+  - key: REACT_APP_API_URL
+    value: https://ats-system-u2nr.onrender.com
+  - key: CI
+    value: false
+  - key: GENERATE_SOURCEMAP
+    value: false
+
+# Build settings
+buildCommand: cd client && npm install && npm run build
+publishDir: client/build
