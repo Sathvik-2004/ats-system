@@ -12,7 +12,7 @@
 		{ "src": "/(.*)", "dest": "/index.html" }
 	],
 	"env": {
-		"REACT_APP_API_URL": "https://ats-system-u2nr.onrender.com",
+		"REACT_APP_API_URL": "https://ats-system-3-lf0t.onrender.com",
 		"CI": "false",
 		"GENERATE_SOURCEMAP": "false",
 		"NODE_OPTIONS": "--max_old_space_size=4096",
