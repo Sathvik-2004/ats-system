@@ -1,5 +1,5 @@
-// API Configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// API Configuration - Updated to use Render backend
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ats-system-u2nr.onrender.com';
 
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
