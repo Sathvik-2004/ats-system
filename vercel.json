@@ -1,28 +1,16 @@
 {
   "version": 2,
   "name": "ats-system",
-  "builds": [
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/build",
+  "installCommand": "cd client && npm install",
+  "rewrites": [
     {
-      "src": "client/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "https://lessats-systemgreater-production.up.railway.app/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "client/build/$1"
+      "source": "/api/(.*)",
+      "destination": "https://lessats-systemgreater-production.up.railway.app/api/$1"
     }
   ],
   "env": {
     "REACT_APP_API_URL": "https://lessats-systemgreater-production.up.railway.app"
-  },
-  "buildCommand": "cd client && npm install && npm run build",
-  "outputDirectory": "client/build"
+  }
 }
