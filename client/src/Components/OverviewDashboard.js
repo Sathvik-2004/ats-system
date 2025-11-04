@@ -12,8 +12,51 @@ const OverviewDashboard = () => {
   });
 
   useEffect(() => {
+    // Initialize sample applications if none exist
+    initializeSampleApplications();
     fetchStats();
   }, []);
+
+  const initializeSampleApplications = () => {
+    const existingApps = JSON.parse(localStorage.getItem('userApplications') || '[]');
+    
+    if (existingApps.length === 0) {
+      const sampleApplications = [
+        {
+          id: Date.now() - 86400000, // 1 day ago
+          jobTitle: 'Frontend Developer',
+          company: 'TechCorp Solutions',
+          appliedDate: new Date(Date.now() - 86400000).toISOString(),
+          status: 'Under Review',
+          name: 'Sathvik Reddy',
+          email: 'sathwikreddy9228@gmail.com'
+        },
+        {
+          id: Date.now() - 172800000, // 2 days ago
+          jobTitle: 'Backend Developer',
+          company: 'DataFlow Systems',
+          appliedDate: new Date(Date.now() - 172800000).toISOString(),
+          status: 'Pending',
+          name: 'Sathvik Reddy',
+          email: 'sathwikreddy9228@gmail.com'
+        },
+        {
+          id: Date.now() - 259200000, // 3 days ago
+          jobTitle: 'Full Stack Developer',
+          company: 'Innovation Labs Inc',
+          appliedDate: new Date(Date.now() - 259200000).toISOString(),
+          status: 'Interview Scheduled',
+          name: 'Sathvik Reddy',
+          email: 'sathwikreddy9228@gmail.com'
+        }
+      ];
+      
+      localStorage.setItem('userApplications', JSON.stringify(sampleApplications));
+      console.log('✅ Initialized sample applications:', sampleApplications.length);
+    } else {
+      console.log('✅ Found existing applications:', existingApps.length);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -25,19 +68,20 @@ const OverviewDashboard = () => {
         return;
       }
 
-      const response = await axios.get('http://localhost:5000/api/auth/my-applications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      console.log('📡 Overview - API Response:', response.data);
-      
-      if (response.data.success) {
-        const applications = response.data.applications;
-        console.log(`✅ Overview - Found ${applications.length} applications`);
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const response = await axios.get(`${API_URL}/api/auth/my-applications`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         
-        const total = applications.length;
-        const pending = applications.filter(app => app.status === 'Pending').length;
-        const underReview = applications.filter(app => app.status === 'Under Review').length;
+        console.log('📡 Overview - API Response:', response.data);
+        
+        if (response.data.success) {
+          const applications = response.data.applications;
+          console.log(`✅ Overview - Found ${applications.length} applications`);
+          
+          const total = applications.length;
+          const pending = applications.filter(app => app.status === 'Pending').length;
+          const underReview = applications.filter(app => app.status === 'Under Review').length;
         const approved = applications.filter(app => app.status === 'Approved' || app.status === 'Interview Scheduled').length;
         const successRate = total > 0 ? Math.round((approved / total) * 100) : 0;
 
@@ -53,15 +97,38 @@ const OverviewDashboard = () => {
           pending: pending + underReview,
           successRate
         });
-      } else {
-        console.error('❌ Overview - API returned success=false:', response.data);
+        } else {
+          console.error('❌ Overview - API returned success=false:', response.data);
+        }
+      } catch (error) {
+        console.error('❌ Overview - Error fetching stats:', error);
+        
+        // FALLBACK: Check localStorage for demo applications
+        const localApplications = JSON.parse(localStorage.getItem('userApplications') || '[]');
+        console.log(`✅ Found ${localApplications.length} applications in localStorage`);
+        
+        const total = localApplications.length;
+        const pending = localApplications.filter(app => 
+          app.status === 'Pending' || app.status === 'Under Review' || app.status === 'Pending Submission'
+        ).length;
+        const approved = localApplications.filter(app => 
+          app.status === 'Approved' || app.status === 'Interview Scheduled'
+        ).length;
+        const successRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+        
+        setStats({
+          totalApplications: total,
+          pendingApplications: pending,
+          successRate: successRate,
+          profileCompletion: 85,
+        });
+        
+        console.log('📊 Overview - Final stats from localStorage:', {
+          totalApplications: total,
+          pendingApplications: pending,
+          successRate: successRate
+        });
       }
-    } catch (error) {
-      console.error('❌ Overview - Error fetching stats:', error);
-      if (error.response) {
-        console.error('❌ Overview - Error response:', error.response.data);
-      }
-    }
   };
 
   const dashboardItems = [

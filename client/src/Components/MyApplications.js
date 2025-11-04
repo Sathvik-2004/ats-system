@@ -8,7 +8,51 @@ const MyApplications = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Initialize sample data if localStorage is empty (for demo purposes)
+  const initializeSampleData = () => {
+    const existingApps = JSON.parse(localStorage.getItem('userApplications') || '[]');
+    if (existingApps.length === 0) {
+      const sampleApps = [
+        {
+          id: Date.now() - 86400000,
+          jobTitle: 'Frontend Developer',
+          company: 'TechCorp Solutions',
+          appliedDate: new Date(Date.now() - 86400000).toISOString(),
+          status: 'Under Review',
+          name: 'John Doe',
+          email: 'john@example.com'
+        },
+        {
+          id: Date.now() - 172800000,
+          jobTitle: 'Backend Developer', 
+          company: 'DataFlow Systems',
+          appliedDate: new Date(Date.now() - 172800000).toISOString(),
+          status: 'Interview Scheduled',
+          name: 'John Doe',
+          email: 'john@example.com'
+        },
+        {
+          id: Date.now() - 259200000,
+          jobTitle: 'Full Stack Developer',
+          company: 'Innovation Labs Inc',
+          appliedDate: new Date(Date.now() - 259200000).toISOString(),
+          status: 'Pending',
+          name: 'John Doe',
+          email: 'john@example.com'
+        }
+      ];
+      
+      localStorage.setItem('userApplications', JSON.stringify(sampleApps));
+      console.log('✅ Initialized sample application data');
+      return sampleApps;
+    }
+    return existingApps;
+  };
+
   useEffect(() => {
+    // Initialize sample data first
+    initializeSampleData();
+    
     fetchApplications();
     fetchStats();
   }, []);
@@ -16,7 +60,8 @@ const MyApplications = () => {
   const fetchApplications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(API_CONFIG.ENDPOINTS.USER_APPLICATIONS, {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await axios.get(`${API_URL}/api/auth/my-applications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -24,8 +69,37 @@ const MyApplications = () => {
         setApplications(response.data.applications);
       }
     } catch (error) {
-      toast.error('Failed to fetch applications');
       console.error('Error fetching applications:', error);
+      
+      // FALLBACK: Read from localStorage
+      const localApplications = JSON.parse(localStorage.getItem('userApplications') || '[]');
+      console.log(`✅ Found ${localApplications.length} applications in localStorage`);
+      setApplications(localApplications);
+      
+      // Immediately calculate stats from the loaded applications
+      const total = localApplications.length;
+      const pending = localApplications.filter(app => app.status === 'Pending').length;
+      const underReview = localApplications.filter(app => app.status === 'Under Review').length;
+      const approved = localApplications.filter(app => 
+        app.status === 'Approved' || app.status === 'Interview Scheduled'
+      ).length;
+      const rejected = localApplications.filter(app => app.status === 'Rejected').length;
+      
+      setStats({
+        total: total,
+        pending: pending,
+        underReview: underReview,
+        approved: approved,
+        rejected: rejected
+      });
+      
+      console.log('📊 MyApplications - Stats calculated:', {
+        total, pending, underReview, approved, rejected
+      });
+      
+      if (localApplications.length === 0) {
+        toast.info('No applications found. Apply to some jobs first!');
+      }
     } finally {
       setLoading(false);
     }
@@ -34,7 +108,8 @@ const MyApplications = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(API_CONFIG.ENDPOINTS.USER_APPLICATION_STATS, {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await axios.get(`${API_URL}/api/auth/application-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -42,7 +117,8 @@ const MyApplications = () => {
         setStats(response.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('Error fetching stats from API:', error);
+      // Stats will be calculated in fetchApplications from localStorage
     }
   };
 

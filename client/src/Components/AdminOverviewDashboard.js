@@ -89,10 +89,13 @@ const AdminOverviewDashboard = () => {
         ];
       };
       
+      // Define API_URL at function level
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      
       // Fetch Applications Data
       let applications = [];
       try {
-        const appsResponse = await axios.get('http://localhost:5000/api/admin/applications', {
+        const appsResponse = await axios.get(`${API_URL}/api/admin/applications`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -131,7 +134,7 @@ const AdminOverviewDashboard = () => {
       
       // Fetch Users Data
       try {
-        const usersResponse = await axios.get('http://localhost:5000/api/admin/users', {
+        const usersResponse = await axios.get(`${API_URL}/api/admin/users`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -148,7 +151,7 @@ const AdminOverviewDashboard = () => {
       
       // Fetch Jobs Data
       try {
-        const jobsResponse = await axios.get('http://localhost:5000/api/jobs', {
+        const jobsResponse = await axios.get(`${API_URL}/api/jobs`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         

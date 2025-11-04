@@ -25,8 +25,12 @@ const AdminLogin = ({ onLogin }) => {
     console.log('🛠️ Admin login attempt with:', formData);
 
     try {
-      console.log('📡 Sending request to: http://localhost:5000/api/admin/login');
-      const response = await axios.post('http://localhost:5000/api/admin/login', formData);
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      console.log('🌍 Environment API_URL:', process.env.REACT_APP_API_URL);
+      console.log('📡 Final API_URL:', API_URL);
+      console.log('📡 Sending request to:', `${API_URL}/api/admin/login`);
+      console.log('📤 Request payload:', formData);
+      const response = await axios.post(`${API_URL}/api/admin/login`, formData);
       
       console.log('✅ Login response:', response.data);
       
