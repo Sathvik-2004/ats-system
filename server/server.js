@@ -6,7 +6,7 @@ const app = express();
 console.log('🚀 BASIC SERVER WITH DATABASE STARTING...');
 
 // MongoDB Connection - Fix URL encoding
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024!@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster';
 
 // Try connecting to MongoDB with fallback
 mongoose.connect(MONGO_URI)
