@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ats-backend
+    name: ats-system-backend
     env: node
     plan: free
     buildCommand: cd server && npm install
@@ -10,3 +10,5 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: MONGO_URI
+        value: mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster

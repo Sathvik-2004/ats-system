@@ -1,9 +1,10 @@
-// BASIC SERVER WITH DATABASE CONNECTION FOR RENDER
+// ATS SYSTEM BACKEND FOR RENDER.COM
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
 const app = express();
 
-console.log('🚀 BASIC SERVER WITH DATABASE STARTING...');
+console.log('🚀 ATS BACKEND STARTING ON RENDER.COM...');
 
 // MongoDB Connection - Fix URL encoding
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster';
@@ -42,13 +43,19 @@ const Application = mongoose.model('Application', ApplicationSchema);
 
 // Basic middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Allow CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  next();
+// CORS configuration for Render.com
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://ats-system-flame.vercel.app',
+    'https://*.onrender.com'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 });
 
 // Log all requests
