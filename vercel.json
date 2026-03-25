@@ -11,6 +11,8 @@
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://ats-system-u2nr.onrender.com"
+    "REACT_APP_API_URL": "https://ats-system-u2nr.onrender.com",
+    "CI": "false",
+    "GENERATE_SOURCEMAP": "false"
   }
 }
