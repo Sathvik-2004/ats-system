@@ -1,145 +1,212 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import API_CONFIG from '../config/api';
 import { toast } from 'react-toastify';
+import { connectSocket } from '../utils/socket';
+import LoadingSpinner from './common/LoadingSpinner';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
+const mapStatusForUi = (status) => {
+  const statusMap = {
+    applied: 'Applied',
+    reviewing: 'Screening',
+    shortlisted: 'Screening',
+    interview_scheduled: 'Interview',
+    selected: 'Offer',
+    rejected: 'Rejected',
+    withdrawn: 'Withdrawn'
+  };
+  return statusMap[status] || status || 'Pending';
+};
+
+const WORKFLOW_STAGES = ['applied', 'screening', 'interview', 'offer', 'rejected'];
+
+const WORKFLOW_LABELS = {
+  applied: 'Applied',
+  screening: 'Screening',
+  interview: 'Interview',
+  offer: 'Offer',
+  rejected: 'Rejected'
+};
+
+const mapStatusToWorkflowStage = (status) => {
+  if (status === 'reviewing' || status === 'shortlisted') return 'screening';
+  if (status === 'interview_scheduled') return 'interview';
+  if (status === 'selected') return 'offer';
+  if (status === 'rejected') return 'rejected';
+  if (status === 'withdrawn') return null;
+  return 'applied';
+};
+
+const getInterviewModeLabel = (rawMode) => {
+  const normalized = String(rawMode || '').trim().toLowerCase();
+  if (normalized === 'in-person' || normalized === 'in person' || normalized === 'in_person') {
+    return 'In-person';
+  }
+  if (normalized === 'online') {
+    return 'Online';
+  }
+  return 'TBD';
+};
 
 const MyApplications = () => {
   const [applications, setApplications] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
-
-  // Initialize sample data if localStorage is empty (for demo purposes)
-  const initializeSampleData = () => {
-    const existingApps = JSON.parse(localStorage.getItem('userApplications') || '[]');
-    if (existingApps.length === 0) {
-      const sampleApps = [
-        {
-          id: Date.now() - 86400000,
-          jobTitle: 'Frontend Developer',
-          company: 'TechCorp Solutions',
-          appliedDate: new Date(Date.now() - 86400000).toISOString(),
-          status: 'Under Review',
-          name: 'John Doe',
-          email: 'john@example.com'
-        },
-        {
-          id: Date.now() - 172800000,
-          jobTitle: 'Backend Developer', 
-          company: 'DataFlow Systems',
-          appliedDate: new Date(Date.now() - 172800000).toISOString(),
-          status: 'Interview Scheduled',
-          name: 'John Doe',
-          email: 'john@example.com'
-        },
-        {
-          id: Date.now() - 259200000,
-          jobTitle: 'Full Stack Developer',
-          company: 'Innovation Labs Inc',
-          appliedDate: new Date(Date.now() - 259200000).toISOString(),
-          status: 'Pending',
-          name: 'John Doe',
-          email: 'john@example.com'
-        }
-      ];
-      
-      localStorage.setItem('userApplications', JSON.stringify(sampleApps));
-      console.log('✅ Initialized sample application data');
-      return sampleApps;
-    }
-    return existingApps;
-  };
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState(null);
+  const [withdrawConfirm, setWithdrawConfirm] = useState(null);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   useEffect(() => {
-    // Initialize sample data first
-    initializeSampleData();
-    
     fetchApplications();
     fetchStats();
+
+    const intervalId = setInterval(() => {
+      fetchApplications({ silent: true });
+      fetchStats();
+    }, 30000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
-  const fetchApplications = async () => {
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const socket = connectSocket(token);
+    if (!socket) return undefined;
+
+    const handleRealtimeUpdate = () => {
+      fetchApplications({ silent: true });
+      fetchStats();
+      setLastSyncAt(new Date());
+    };
+
+    socket.on('application:new', handleRealtimeUpdate);
+    socket.on('application:status-updated', handleRealtimeUpdate);
+    socket.on('application:withdrawn', handleRealtimeUpdate);
+    socket.on('interview:scheduled', handleRealtimeUpdate);
+
+    return () => {
+      socket.off('application:new', handleRealtimeUpdate);
+      socket.off('application:status-updated', handleRealtimeUpdate);
+      socket.off('application:withdrawn', handleRealtimeUpdate);
+      socket.off('interview:scheduled', handleRealtimeUpdate);
+    };
+  }, []);
+
+  const fetchApplications = async ({ silent = false } = {}) => {
     try {
+      if (!silent) {
+        if (applications.length === 0) {
+          setLoading(true);
+        } else {
+          setRefreshing(true);
+        }
+      }
+
       const token = localStorage.getItem('token');
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const response = await axios.get(`${API_URL}/api/auth/my-applications`, {
+      const response = await axios.get(`${API_URL}/api/applications/mine`, {
+        params: { includeWithdrawn: true },
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.data.success) {
-        setApplications(response.data.applications);
+        const normalized = (response.data.applications || []).map((application) => ({
+          ...application,
+          _id: application._id || application.id,
+          statusRaw: application.status,
+          status: mapStatusForUi(application.status),
+          appliedDate: application.appliedDate || application.createdAt,
+          statusHistory: Array.isArray(application.statusHistory) ? application.statusHistory : []
+        }));
+        setApplications(normalized);
+        setLastSyncAt(new Date());
       }
     } catch (error) {
       console.error('Error fetching applications:', error);
-      
-      // FALLBACK: Read from localStorage
-      const localApplications = JSON.parse(localStorage.getItem('userApplications') || '[]');
-      console.log(`✅ Found ${localApplications.length} applications in localStorage`);
-      setApplications(localApplications);
-      
-      // Immediately calculate stats from the loaded applications
-      const total = localApplications.length;
-      const pending = localApplications.filter(app => app.status === 'Pending').length;
-      const underReview = localApplications.filter(app => app.status === 'Under Review').length;
-      const approved = localApplications.filter(app => 
-        app.status === 'Approved' || app.status === 'Interview Scheduled'
-      ).length;
-      const rejected = localApplications.filter(app => app.status === 'Rejected').length;
-      
-      setStats({
-        total: total,
-        pending: pending,
-        underReview: underReview,
-        approved: approved,
-        rejected: rejected
-      });
-      
-      console.log('📊 MyApplications - Stats calculated:', {
-        total, pending, underReview, approved, rejected
-      });
-      
-      if (localApplications.length === 0) {
-        toast.info('No applications found. Apply to some jobs first!');
+      if (!silent) {
+        setApplications([]);
+        toast.error(error?.response?.data?.message || 'Failed to fetch your applications');
       }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const response = await axios.get(`${API_URL}/api/auth/application-stats`, {
+      const response = await axios.get(`${API_URL}/api/applications/mine/stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.data.success) {
-        setStats(response.data.stats);
+        setStats(response.data.stats || {});
       }
     } catch (error) {
       console.error('Error fetching stats from API:', error);
-      // Stats will be calculated in fetchApplications from localStorage
+      setStats({ total: 0, pending: 0, underReview: 0, approved: 0, rejected: 0 });
     }
+  };
+
+  const handleWithdraw = async (applicationId) => {
+    try {
+      if (!applicationId) {
+        toast.error('Unable to withdraw: missing application ID');
+        return;
+      }
+
+      setWithdrawing(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API_URL}/api/applications/${applicationId}/withdraw`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        toast.success('Application withdrawn successfully');
+        setWithdrawConfirm(null);
+        fetchApplications({ silent: false });
+        fetchStats();
+      }
+    } catch (error) {
+      console.error('Error withdrawing application:', error);
+      const message = error.response?.data?.message || 'Failed to withdraw application';
+      toast.error(message);
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
+  const canWithdraw = (status) => {
+    // Allow withdraw for applied, reviewing, shortlisted, and interview scheduled status
+    return ['applied', 'reviewing', 'shortlisted', 'interview_scheduled'].includes(status);
   };
 
   const getStatusColor = (status) => {
     const colors = {
-      'Pending': '#f59e0b',
-      'Under Review': '#3b82f6',
-      'Interview Scheduled': '#8b5cf6',
-      'Approved': '#10b981',
-      'Rejected': '#ef4444'
+      'Applied': '#f59e0b',
+      'Screening': '#3b82f6',
+      'Interview': '#8b5cf6',
+      'Offer': '#10b981',
+      'Rejected': '#ef4444',
+      'Withdrawn': '#6b7280'
     };
     return colors[status] || '#6b7280';
   };
 
   const getStatusIcon = (status) => {
     const icons = {
-      'Pending': '⏳',
-      'Under Review': '👀',
-      'Interview Scheduled': '📅',
-      'Approved': '✅',
-      'Rejected': '❌'
+      'Applied': '⏳',
+      'Screening': '👀',
+      'Interview': '📅',
+      'Offer': '✅',
+      'Rejected': '❌',
+      'Withdrawn': '🚫'
     };
     return icons[status] || '📄';
   };
@@ -155,60 +222,7 @@ const MyApplications = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-        flexDirection: 'column',
-        gap: '24px',
-      }}>
-        <div style={{
-          width: '80px',
-          height: '80px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '32px',
-          animation: 'pulse 2s infinite',
-        }}>
-          📊
-        </div>
-        
-        <div style={{
-          width: 60,
-          height: 60,
-          border: '6px solid rgba(102, 126, 234, 0.2)',
-          borderTop: '6px solid #667eea',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }}></div>
-        
-        <p style={{
-          color: '#4b5563',
-          fontSize: '18px',
-          fontWeight: 600,
-          margin: 0,
-        }}>
-          Loading your applications...
-        </p>
-        
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-          }
-        `}</style>
-      </div>
-    );
+    return <LoadingSpinner fullscreen label="Loading your applications..." />;
   }
 
   return (
@@ -355,8 +369,35 @@ const MyApplications = () => {
               }}>
                 Track your job applications and their current status
               </p>
+              <p style={{
+                margin: '10px 0 0 0',
+                fontSize: 14,
+                opacity: 0.9,
+                fontWeight: 500,
+              }}>
+                {lastSyncAt ? `Live • Updated ${lastSyncAt.toLocaleTimeString()}` : 'Live updates enabled'}
+              </p>
             </div>
           </div>
+          <button
+            onClick={() => {
+              fetchApplications();
+              fetchStats();
+            }}
+            disabled={refreshing}
+            style={{
+              background: 'rgba(255, 255, 255, 0.18)',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              borderRadius: '10px',
+              padding: '10px 16px',
+              fontWeight: 600,
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              opacity: refreshing ? 0.7 : 1,
+            }}
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh Data'}
+          </button>
         </div>
       </div>
 
@@ -365,7 +406,6 @@ const MyApplications = () => {
         margin: '0 auto',
         padding: '32px',
       }}>
-
         {/* Enhanced Statistics Cards */}
         <div style={{
           display: 'grid',
@@ -391,7 +431,7 @@ const MyApplications = () => {
             { 
               value: stats.underReview || 0, 
               label: 'Under Review', 
-              icon: '�', 
+              icon: '👀', 
               gradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
               shadowColor: 'rgba(59, 130, 246, 0.3)'
             },
@@ -594,7 +634,7 @@ const MyApplications = () => {
             }}>
               {applications.map((application, index) => (
                 <div 
-                  key={application.id} 
+                  key={application._id || application.id || index} 
                   style={{
                     background: '#fff',
                     padding: '28px 32px',
@@ -676,8 +716,44 @@ const MyApplications = () => {
                           gap: '6px',
                         }}>
                           <span style={{ fontSize: '14px' }}>📅</span>
-                          Applied {formatDate(application.appliedAt)}
+                          Applied {formatDate(application.appliedDate || application.createdAt)}
                         </p>
+                      </div>
+
+                      <div style={{ marginTop: '14px' }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+                          gap: '8px',
+                          alignItems: 'center'
+                        }}>
+                          {WORKFLOW_STAGES.map((stage, stageIndex) => {
+                            const mappedStage = mapStatusToWorkflowStage(application.statusRaw || 'applied');
+                            const currentIndex = WORKFLOW_STAGES.indexOf(mappedStage);
+                            const isReached = currentIndex >= stageIndex;
+                            const isCurrent = currentIndex === stageIndex;
+
+                            return (
+                              <div key={stage} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                <div style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: '50%',
+                                  background: isReached ? '#667eea' : '#d1d5db',
+                                  boxShadow: isCurrent ? '0 0 0 4px rgba(102, 126, 234, 0.2)' : 'none'
+                                }} />
+                                <span style={{
+                                  fontSize: 11,
+                                  fontWeight: isCurrent ? 700 : 500,
+                                  color: isReached ? '#374151' : '#9ca3af',
+                                  textAlign: 'center'
+                                }}>
+                                  {WORKFLOW_LABELS[stage]}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                       
                       {application.notes && (
@@ -698,14 +774,72 @@ const MyApplications = () => {
                           </p>
                         </div>
                       )}
+
+                      {application.statusRaw === 'interview_scheduled' && application.interviewScheduled && (
+                        <div style={{
+                          background: '#f5f3ff',
+                          padding: '12px 16px',
+                          borderRadius: 12,
+                          marginTop: '12px',
+                          borderLeft: '4px solid #8b5cf6',
+                        }}>
+                          <p style={{
+                            color: '#4c1d95',
+                            fontSize: 14,
+                            margin: 0,
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '12px',
+                            alignItems: 'center'
+                          }}>
+                            <span>📅 {application.interviewScheduled?.date ? formatDate(application.interviewScheduled.date) : 'Date TBD'}</span>
+                            <span>🕒 {application.interviewScheduled?.time || 'Time TBD'}</span>
+                            <span>📍 {getInterviewModeLabel(application.interviewScheduled?.mode)}</span>
+                            {application.interviewScheduled?.interviewLink && (
+                              <span>🔗 {application.interviewScheduled.interviewLink}</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'flex-end',
-                      gap: '8px',
+                      gap: '12px',
                     }}>
+                      {canWithdraw(application.statusRaw) && (
+                        <button
+                          onClick={() => setWithdrawConfirm(application)}
+                          disabled={withdrawing}
+                          style={{
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            border: '1px solid #fca5a5',
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: withdrawing ? 'not-allowed' : 'pointer',
+                            opacity: withdrawing ? 0.6 : 1,
+                            transition: 'all 0.2s',
+                            whiteSpace: 'nowrap',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!withdrawing) {
+                              e.target.style.background = '#fecaca';
+                              e.target.style.borderColor = '#f87171';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = '#fee2e2';
+                            e.target.style.borderColor = '#fca5a5';
+                          }}
+                        >
+                          🚫 Withdraw
+                        </button>
+                      )}
                       {application.reviewedAt && (
                         <div style={{
                           background: '#f0f9ff',
@@ -733,6 +867,141 @@ const MyApplications = () => {
             </div>
           </div>
         )}
+
+      {/* Withdraw Confirmation Modal */}
+      {withdrawConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            padding: '32px',
+            maxWidth: '450px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            animation: 'slideUp 0.3s ease',
+          }}>
+            <div style={{
+              textAlign: 'center',
+              marginBottom: '24px',
+            }}>
+              <div style={{
+                fontSize: 48,
+                marginBottom: '16px',
+              }}>
+                ⚠️
+              </div>
+              <h2 style={{
+                color: '#1f2937',
+                fontWeight: 700,
+                fontSize: 20,
+                margin: 0,
+                marginBottom: '8px',
+              }}>
+                Withdraw Application?
+              </h2>
+              <p style={{
+                color: '#6b7280',
+                fontSize: 15,
+                margin: '8px 0 0 0',
+              }}>
+                Are you sure you want to withdraw your application for <strong>{withdrawConfirm.jobTitle}</strong>?
+              </p>
+              <p style={{
+                color: '#9ca3af',
+                fontSize: 13,
+                margin: '12px 0 0 0',
+              }}>
+                This action cannot be undone. You can reapply later if needed.
+              </p>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '12px',
+            }}>
+              <button
+                onClick={() => setWithdrawConfirm(null)}
+                disabled={withdrawing}
+                style={{
+                  background: '#f3f4f6',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  padding: '12px 20px',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: withdrawing ? 'not-allowed' : 'pointer',
+                  opacity: withdrawing ? 0.6 : 1,
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!withdrawing) {
+                    e.target.style.background = '#e5e7eb';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#f3f4f6';
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleWithdraw(withdrawConfirm._id || withdrawConfirm.id)}
+                disabled={withdrawing}
+                style={{
+                  background: '#fecaca',
+                  color: '#991b1b',
+                  border: '1px solid #fca5a5',
+                  padding: '12px 20px',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: withdrawing ? 'not-allowed' : 'pointer',
+                  opacity: withdrawing ? 0.6 : 1,
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!withdrawing) {
+                    e.target.style.background = '#f87171';
+                    e.target.style.color = '#7f1d1d';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#fecaca';
+                  e.target.style.color = '#991b1b';
+                }}
+              >
+                {withdrawing ? 'Withdrawing...' : 'Withdraw'}
+              </button>
+            </div>
+          </div>
+          <style>{`
+            @keyframes slideUp {
+              from {
+                opacity: 0;
+                transform: translateY(20px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          `}</style>
+        </div>
+      )}
       </div>
     </div>
   );
