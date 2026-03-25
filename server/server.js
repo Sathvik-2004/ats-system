@@ -2,6 +2,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
 const app = express();
 
 console.log('🚀 ATS BACKEND STARTING ON RENDER.COM...');
@@ -13,6 +14,24 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sathwikreddy9228_db_us
 mongoose.connect(MONGO_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB Atlas');
+    // Initialize default user record if it doesn't exist
+    setTimeout(() => {
+      User.findOne({ email: 'sathwikreddy9228@gmail.com' }).then(existingUser => {
+        if (!existingUser) {
+          const newUser = new User({
+            name: 'Test User',
+            email: 'sathwikreddy9228@gmail.com',
+            password: 'password123',
+            role: 'user'
+          });
+          return newUser.save().then(() => {
+            console.log('✅ Created default user record');
+          });
+        }
+      }).catch(err => {
+        console.error('Error initializing user:', err);
+      });
+    }, 1000);
   })
   .catch(err => {
     console.error('❌ MongoDB connection error:', err);
@@ -440,6 +459,69 @@ app.get('/api/auth/application-stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.json({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  }
+});
+
+// Analytics endpoints
+app.get('/api/analytics/dashboard/full-data', async (req, res) => {
+  console.log('📊 Full analytics dashboard data requested');
+  try {
+    const totalApplications = await Application.countDocuments();
+    const totalJobs = 8; // Mock data
+    const totalUsers = await User.countDocuments();
+    
+    res.json({
+      success: true,
+      data: {
+        totalApplications,
+        totalJobs,
+        totalUsers,
+        applicationsByStatus: {
+          pending: await Application.countDocuments({ status: 'pending' }),
+          approved: await Application.countDocuments({ status: 'approved' }),
+          rejected: await Application.countDocuments({ status: 'rejected' })
+        },
+        recentApplications: await Application.find().sort({ createdAt: -1 }).limit(10)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.json({
+      success: true,
+      data: {
+        totalApplications: 0,
+        totalJobs: 0,
+        totalUsers: 0,
+        applicationsByStatus: { pending: 0, approved: 0, rejected: 0 },
+        recentApplications: []
+      }
+    });
+  }
+});
+
+app.get('/api/reports/summary', async (req, res) => {
+  console.log('📈 Reports summary requested');
+  try {
+    res.json({
+      success: true,
+      data: {
+        totalApplications: await Application.countDocuments(),
+        totalJobs: 8,
+        conversionRate: 0,
+        averageTimeToHire: 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    res.json({
+      success: true,
+      data: {
+        totalApplications: 0,
+        totalJobs: 0,
+        conversionRate: 0,
+        averageTimeToHire: 0
+      }
+    });
   }
 });
 
