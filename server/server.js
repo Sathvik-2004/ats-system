@@ -273,9 +273,22 @@ app.post('/api/auth/user-login', async (req, res) => {
       }
     }
     
-    // Find user in database
-    const user = await User.findOne({ email, password });
+    // Find user in database and support both hashed and legacy plaintext passwords.
+    const user = await User.findOne({ email });
+    let userPasswordMatched = false;
     if (user) {
+      try {
+        userPasswordMatched = await bcrypt.compare(password, user.password);
+      } catch (_err) {
+        userPasswordMatched = false;
+      }
+
+      if (!userPasswordMatched && user.password === password) {
+        userPasswordMatched = true;
+      }
+    }
+
+    if (user && userPasswordMatched) {
       res.json({ 
         success: true,
         message: 'User login successful',
@@ -321,12 +334,12 @@ app.post('/api/auth/user-login', async (req, res) => {
 
 app.post('/api/auth/admin-login', async (req, res) => {
   console.log('👨‍💼 Admin login attempt:', req.body);
+  const { username, password } = req.body;
   try {
-    const { username, password } = req.body;
-    
+
     // Fallback admin credentials when database is not available
     if (mongoose.connection.readyState !== 1) {
-      if (username === 'admin' && password === 'admin123') {
+      if (username === 'admin' && password === 'ksreddy@2004') {
         return res.json({ 
           success: true,
           message: 'Admin login successful (fallback mode)',
@@ -341,25 +354,38 @@ app.post('/api/auth/admin-login', async (req, res) => {
       }
     }
     
-    // Try database first
+    // Try database first and support legacy records that used `username` field.
     const admin = await User.findOne({ 
       $or: [
         { email: username, role: 'admin' },
-        { name: username, role: 'admin' }
+        { name: username, role: 'admin' },
+        { username: username, role: 'admin' }
       ],
-      password: password 
     });
-    
+
+    let adminPasswordMatched = false;
     if (admin) {
+      try {
+        adminPasswordMatched = await bcrypt.compare(password, admin.password);
+      } catch (_err) {
+        adminPasswordMatched = false;
+      }
+
+      if (!adminPasswordMatched && admin.password === password) {
+        adminPasswordMatched = true;
+      }
+    }
+    
+    if (admin && adminPasswordMatched) {
       res.json({ 
         success: true,
         message: 'Admin login successful',
         token: 'admin-token-' + admin._id,
-        admin: { username: admin.name || admin.email, role: 'admin', id: admin._id }
+        admin: { username: admin.username || admin.name || admin.email, role: 'admin', id: admin._id }
       });
     } else {
       // Fallback if no admin found in database
-      if (username === 'admin' && password === 'admin123') {
+      if (username === 'admin' && password === 'ksreddy@2004') {
         res.json({ 
           success: true,
           message: 'Admin login successful (fallback)',
@@ -369,14 +395,14 @@ app.post('/api/auth/admin-login', async (req, res) => {
       } else {
         res.status(401).json({ 
           success: false,
-          message: 'Invalid admin credentials. Try username: admin, password: admin123'
+          message: 'Invalid admin credentials'
         });
       }
     }
   } catch (error) {
     console.error('Admin login error:', error);
     // Fallback on error
-    if (username === 'admin' && password === 'admin123') {
+    if (username === 'admin' && password === 'ksreddy@2004') {
       res.json({ 
         success: true,
         message: 'Admin login successful (error fallback)',
@@ -386,7 +412,7 @@ app.post('/api/auth/admin-login', async (req, res) => {
     } else {
       res.status(500).json({ 
         success: false,
-        message: 'Admin login failed. Try username: admin, password: admin123'
+        message: 'Admin login failed'
       });
     }
   }
