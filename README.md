@@ -14,7 +14,7 @@ Built with a scalable full-stack architecture, this system replicates real-world
 ## Live Demo
 
 - Frontend: https://ats-system-flame.vercel.app
-- Backend API: https://lessats-systemgreater-production.up.railway.app
+- Backend API: https://ats-system-u2nr.onrender.com
 
 ## Project Overview
 
@@ -90,7 +90,7 @@ It supports role-based workflows:
 
 Base URL
 
-- Production: https://lessats-systemgreater-production.up.railway.app
+- Production: https://ats-system-u2nr.onrender.com
 - Local: http://localhost:5001
 
 Authentication

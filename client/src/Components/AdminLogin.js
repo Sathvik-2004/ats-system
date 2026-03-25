@@ -22,30 +22,26 @@ const AdminLogin = ({ onLogin }) => {
     e.preventDefault();
     setLoading(true);
 
-    console.log('🛠️ Admin login attempt with:', formData);
-
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      console.log('🌍 Environment API_URL:', process.env.REACT_APP_API_URL);
-      console.log('📡 Final API_URL:', API_URL);
-      console.log('📡 Sending request to:', `${API_URL}/api/admin/login`);
-      console.log('📤 Request payload:', formData);
-      const response = await axios.post(`${API_URL}/api/admin/login`, formData);
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await axios.post(`${API_URL}/api/auth/admin-login`, formData);
+      const payload = response.data?.data || response.data;
       
-      console.log('✅ Login response:', response.data);
-      
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
+      if (payload?.token) {
+        localStorage.setItem('token', payload.token);
+        if (payload.refreshToken) {
+          localStorage.setItem('refreshToken', payload.refreshToken);
+        }
         localStorage.setItem('userType', 'admin');
-        localStorage.setItem('adminData', JSON.stringify(response.data.admin || { username: formData.username }));
+        localStorage.setItem('adminData', JSON.stringify(payload.admin || { username: formData.username }));
         
         toast.success('Admin login successful!');
-        onLogin(response.data.token, 'admin');
+        onLogin(payload.token, 'admin');
         navigate('/admin');
+      } else {
+        toast.error(response.data?.message || 'Admin login failed. Please try again.');
       }
     } catch (error) {
-      console.error('❌ Admin login error:', error);
-      console.error('❌ Error response:', error.response?.data);
       toast.error(error.response?.data?.message || 'Invalid admin credentials. Please try again.');
     } finally {
       setLoading(false);
