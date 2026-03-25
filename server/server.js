@@ -56,7 +56,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-});
 
 // Log all requests
 app.use((req, res, next) => {
