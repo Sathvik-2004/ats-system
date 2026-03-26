@@ -18,7 +18,7 @@ const AdminDashboard = () => {
 
   const fetchApplicants = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/applicants');
+      const res = await axios.get('http://localhost:5001/api/applicants');
       console.log('Fetched applicants:', res.data);
       setApplicants(res.data);
     } catch (err) {
@@ -34,7 +34,7 @@ const AdminDashboard = () => {
     
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/applicants/${applicationId}/status`, {
+      await axios.put(`http://localhost:5001/api/applicants/${applicationId}/status`, {
         status: newStatus,
         notes
       }, {
@@ -104,7 +104,7 @@ const AdminDashboard = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/applicants/bulk-update', {
+      await axios.post('http://localhost:5001/api/applicants/bulk-update', {
         applicationIds: selectedApplications,
         status: bulkAction,
         notes: `Bulk ${bulkAction.toLowerCase()} by admin`
@@ -130,7 +130,7 @@ const AdminDashboard = () => {
     setAutoProcessing(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/applicants/auto-process', {}, {
+      const response = await axios.post('http://localhost:5001/api/applicants/auto-process', {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -546,7 +546,7 @@ const AdminDashboard = () => {
                         textAlign: 'center',
                       }}>
                         <a
-                          href={`http://localhost:5000/uploads/${applicant.resume}`}
+                          href={`http://localhost:5001/uploads/${applicant.resume}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{

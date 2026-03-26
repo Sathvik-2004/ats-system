@@ -1,0 +1,368 @@
+:root {
+  --aod-bg: #f4f6f8;
+  --aod-surface: #ffffff;
+  --aod-border: #d9e0e6;
+  --aod-text: #142027;
+  --aod-muted: #5a6772;
+  --aod-shadow: 0 12px 32px rgba(16, 24, 40, 0.08);
+}
+
+.aod-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(34, 197, 94, 0.06) 0%, transparent 46%),
+    radial-gradient(circle at 95% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 44%),
+    var(--aod-bg);
+  min-height: 100%;
+}
+
+.aod-header-wrap {
+  margin-bottom: 26px;
+}
+
+.aod-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.aod-title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--aod-text);
+  letter-spacing: -0.02em;
+}
+
+.aod-subtitle {
+  margin: 8px 0 0;
+  color: var(--aod-muted);
+  font-size: 0.98rem;
+}
+
+.aod-live-box {
+  border: 1px solid var(--aod-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 10px 12px;
+  min-width: 180px;
+}
+
+.aod-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--aod-muted);
+}
+
+.aod-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+}
+
+.aod-live-time {
+  margin-top: 5px;
+  color: #6f7c87;
+  font-size: 0.75rem;
+}
+
+.aod-hero-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin-bottom: 18px;
+}
+
+.aod-hero-card {
+  border-radius: 16px;
+  color: #fff;
+  padding: 18px;
+  box-shadow: var(--aod-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.aod-hero-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.12), transparent 55%);
+  pointer-events: none;
+}
+
+.aod-hero-blue {
+  background: linear-gradient(135deg, #2563eb 0%, #0f172a 100%);
+}
+
+.aod-hero-rose {
+  background: linear-gradient(135deg, #e11d48 0%, #7f1d1d 100%);
+}
+
+.aod-hero-teal {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+}
+
+.aod-hero-mint {
+  background: linear-gradient(135deg, #16a34a 0%, #14532d 100%);
+}
+
+.aod-hero-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.aod-card-label {
+  margin: 0;
+  font-size: 0.84rem;
+  opacity: 0.88;
+  font-weight: 600;
+}
+
+.aod-card-value {
+  margin: 8px 0 4px;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.aod-card-note {
+  font-size: 0.78rem;
+  opacity: 0.86;
+}
+
+.aod-card-icon {
+  font-size: 2rem;
+  opacity: 0.85;
+}
+
+.aod-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.aod-mini-card {
+  background: var(--aod-surface);
+  border: 1px solid var(--aod-border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.aod-mini-icon {
+  font-size: 1.45rem;
+  margin-bottom: 6px;
+}
+
+.aod-mini-value {
+  margin: 0;
+  font-size: 1.48rem;
+  color: var(--aod-text);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.aod-health-value {
+  font-size: 1.2rem;
+}
+
+.aod-mini-label {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  color: var(--aod-muted);
+}
+
+.aod-activity-card {
+  background: var(--aod-surface);
+  border: 1px solid var(--aod-border);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.aod-activity-title {
+  margin: 0 0 14px;
+  font-size: 1.1rem;
+  color: var(--aod-text);
+  letter-spacing: -0.01em;
+}
+
+.aod-activity-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.aod-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid #eef2f5;
+}
+
+.aod-activity-item:last-child {
+  border-bottom: none;
+}
+
+.aod-activity-icon {
+  width: 32px;
+  text-align: center;
+  font-size: 1.2rem;
+}
+
+.aod-activity-content {
+  flex: 1;
+}
+
+.aod-activity-message {
+  margin: 0;
+  color: var(--aod-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.aod-activity-meta {
+  margin: 2px 0 0;
+  color: var(--aod-muted);
+  font-size: 0.78rem;
+}
+
+.aod-priority-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.aod-priority-high {
+  background: #ef4444;
+}
+
+.aod-priority-medium {
+  background: #f59e0b;
+}
+
+.aod-priority-low {
+  background: #22c55e;
+}
+
+.aod-actions-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.aod-action-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 13px 14px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.aod-action-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.95);
+}
+
+.aod-action-btn:active {
+  transform: translateY(0);
+}
+
+.aod-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.aod-action-btn-primary {
+  background: #2563eb;
+}
+
+.aod-action-btn-success {
+  background: #059669;
+}
+
+.aod-action-btn-neutral {
+  background: #334155;
+}
+
+.aod-action-btn-warning {
+  background: #d97706;
+}
+
+.aod-header-skeleton {
+  height: 82px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  background: #e6edf3;
+}
+
+.aod-card-skeleton {
+  height: 144px;
+  border-radius: 14px;
+  background: #e6edf3;
+}
+
+.aod-mini-skeleton {
+  height: 104px;
+  border-radius: 12px;
+  background: #e6edf3;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -140%;
+  width: 120%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: aod-shimmer 1.35s infinite;
+}
+
+@keyframes aod-shimmer {
+  from {
+    left: -140%;
+  }
+  to {
+    left: 140%;
+  }
+}
+
+@media (max-width: 840px) {
+  .aod-page {
+    padding: 20px 14px 28px;
+  }
+
+  .aod-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .aod-live-box {
+    width: 100%;
+    max-width: 280px;
+  }
+}

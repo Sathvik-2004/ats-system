@@ -18,7 +18,7 @@ const AdminDashboard = () => {
 
   const fetchApplicants = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/applicants');
+      const res = await axios.get('http://localhost:5001/api/applicants');
       console.log('Fetched applicants:', res.data);
       setApplicants(res.data);
     } catch (error) {
@@ -32,7 +32,7 @@ const AdminDashboard = () => {
   const updateApplicationStatus = async (id, status) => {
     setUpdatingStatus(prev => ({ ...prev, [id]: true }));
     try {
-      const updatedApplicant = await axios.put(`http://localhost:5000/api/applicants/${id}/status`, {
+      const updatedApplicant = await axios.put(`http://localhost:5001/api/applicants/${id}/status`, {
         status,
         notes: `Status updated to ${status}`
       });
@@ -90,7 +90,7 @@ const AdminDashboard = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/applicants/bulk-update', {
+      await axios.post('http://localhost:5001/api/applicants/bulk-update', {
         applicationIds: selectedApplications,
         status: bulkAction,
         notes: `Bulk ${bulkAction.toLowerCase()} by admin`
@@ -116,7 +116,7 @@ const AdminDashboard = () => {
     setAutoProcessing(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/applicants/auto-process', {}, {
+      const response = await axios.post('http://localhost:5001/api/applicants/auto-process', {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -504,7 +504,7 @@ const AdminDashboard = () => {
                         textAlign: 'center',
                       }}>
                         <a
-                          href={`http://localhost:5000/uploads/${applicant.resume}`}
+                          href={`http://localhost:5001/uploads/${applicant.resume}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{

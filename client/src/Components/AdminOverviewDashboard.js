@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import './AdminOverviewDashboard.css';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 const AdminOverviewDashboard = () => {
   const navigate = useNavigate();
@@ -34,136 +37,39 @@ const AdminOverviewDashboard = () => {
   const fetchOverviewData = async () => {
     try {
       const token = localStorage.getItem('token');
-      
-      // Initialize with default values
-      let totalApplications = 0;
-      let pendingReviews = 0;
-      let interviewsScheduled = 0;
-      let activeJobs = 0;
-      let totalUsers = 0;
+      const [appsResponse, usersResponse, jobsResponse] = await Promise.all([
+        axios.get(`${API_URL}/api/applications`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { page: 1, limit: 100 }
+        }),
+        axios.get(`${API_URL}/api/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${API_URL}/api/jobs`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+
+      const applications = appsResponse.data?.data || [];
+      const activeApplications = applications.filter((app) => app.status !== 'withdrawn');
+      const users = usersResponse.data?.data || [];
+      const jobs = Array.isArray(jobsResponse.data) ? jobsResponse.data : [];
+
+      let totalApplications = activeApplications.length;
+      let pendingReviews = activeApplications.filter((app) => ['applied', 'reviewing'].includes(app.status)).length;
+      let interviewsScheduled = activeApplications.filter((app) => app.status === 'interview_scheduled').length;
+      let activeJobs = jobs.filter((job) => job.isActive !== false).length;
+      let totalUsers = users.length;
       let hiredThisMonth = 0;
       
-      // Generate mock applications for consistent data
-      const generateMockApplications = () => {
-        return [
-          {
-            _id: '1',
-            name: 'John Doe',
-            email: 'john.doe@example.com',
-            jobTitle: 'Full Stack Developer',
-            status: 'Pending',
-            appliedAt: new Date().toISOString(),
-            resumeUrl: '/mock-resume.pdf',
-            score: 85
-          },
-          {
-            _id: '2',
-            name: 'Jane Smith',
-            email: 'jane.smith@example.com',
-            jobTitle: 'Frontend Developer',
-            status: 'Approved',
-            appliedAt: new Date(Date.now() - 86400000).toISOString(),
-            resumeUrl: '/mock-resume-2.pdf',
-            score: 92
-          },
-          {
-            _id: '3',
-            name: 'Mike Johnson',
-            email: 'mike.johnson@example.com',
-            jobTitle: 'Backend Developer',
-            status: 'Interview Scheduled',
-            appliedAt: new Date(Date.now() - 172800000).toISOString(),
-            resumeUrl: '/mock-resume-3.pdf',
-            score: 78
-          },
-          {
-            _id: '4',
-            name: 'Sarah Wilson',
-            email: 'sarah.wilson@example.com',
-            jobTitle: 'DevOps Engineer',
-            status: 'Hired',
-            appliedAt: new Date(Date.now() - 259200000).toISOString(),
-            resumeUrl: '/mock-resume-4.pdf',
-            score: 65
-          }
-        ];
-      };
-      
-      // Define API_URL at function level
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      
-      // Fetch Applications Data
-      let applications = [];
-      try {
-        const appsResponse = await axios.get(`${API_URL}/api/admin/applications`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (appsResponse.data && Array.isArray(appsResponse.data)) {
-          applications = appsResponse.data;
-        } else if (appsResponse.data && appsResponse.data.applications) {
-          applications = appsResponse.data.applications;
-        } else {
-          console.log('Unexpected API response format, using fallback data');
-          applications = generateMockApplications();
-        }
-      } catch (error) {
-        console.log('Applications API failed, using mock data:', error.message);
-        applications = generateMockApplications();
-      }
-      
-      // Process applications data
-      if (applications && applications.length > 0) {
-        totalApplications = applications.length;
-        pendingReviews = applications.filter(app => 
-          app.status === 'Pending' || app.status === 'Under Review' || app.status === 'pending'
-        ).length;
-        interviewsScheduled = applications.filter(app => 
-          app.status === 'Interview Scheduled' || app.status === 'interview'
-        ).length;
-        
-        // Calculate hired this month
+      if (activeApplications.length > 0) {
         const now = new Date();
-        hiredThisMonth = applications.filter(app => {
+        hiredThisMonth = activeApplications.filter(app => {
           const appDate = new Date(app.appliedAt || app.createdAt);
-          return (app.status === 'Hired' || app.status === 'hired') && 
+          return app.status === 'selected' &&
                  appDate.getMonth() === now.getMonth() && 
                  appDate.getFullYear() === now.getFullYear();
         }).length;
-      }
-      
-      // Fetch Users Data
-      try {
-        const usersResponse = await axios.get(`${API_URL}/api/admin/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (usersResponse.data && Array.isArray(usersResponse.data)) {
-          totalUsers = usersResponse.data.length;
-        } else {
-          console.log('Users API response format issue');
-          totalUsers = 1; // Fallback based on your screenshot
-        }
-      } catch (error) {
-        console.log('Users API not available, using fallback data');
-        totalUsers = 1; // Based on your screenshot showing 1 user
-      }
-      
-      // Fetch Jobs Data
-      try {
-        const jobsResponse = await axios.get(`${API_URL}/api/jobs`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (jobsResponse.data && jobsResponse.data.jobs) {
-          activeJobs = jobsResponse.data.jobs.filter(job => job.status === 'active').length;
-        } else {
-          console.log('Jobs API response format issue');
-          activeJobs = 4; // Fallback
-        }
-      } catch (error) {
-        console.log('Jobs API not available, using fallback data');
-        activeJobs = 4; // Fallback
       }
       
       // Calculate average processing time
@@ -232,28 +138,6 @@ const AdminOverviewDashboard = () => {
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching overview data:', error);
-      // Final comprehensive fallback
-      const fallbackStats = {
-        totalApplications: 4,
-        pendingReviews: 1,
-        interviewsScheduled: 1,
-        activeJobs: 4,
-        totalUsers: 1,
-        hiredThisMonth: 1,
-        avgProcessingTime: 3.5,
-        systemHealth: 'good'
-      };
-      setStats(fallbackStats);
-      setRecentActivity([
-        {
-          id: 1,
-          type: 'application',
-          message: '4 applications in system (mock data)',
-          user: 'System',
-          time: '2 minutes ago',
-          priority: 'high'
-        }
-      ]);
       setLoading(false);
       setLastUpdated(new Date());
     }
@@ -282,384 +166,208 @@ const AdminOverviewDashboard = () => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '400px',
-        fontSize: '18px',
-        color: '#6b7280'
-      }}>
-        Loading overview...
+      <div className="aod-page">
+        <div className="aod-header-skeleton shimmer" />
+        <div className="aod-hero-grid">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="aod-card-skeleton shimmer" />
+          ))}
+        </div>
+        <div className="aod-meta-grid">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="aod-mini-skeleton shimmer" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="aod-page">
+      <div className="aod-header-wrap">
+        <div className="aod-header-row">
           <div>
-            <h1 style={{ 
-              fontSize: '32px', 
-              fontWeight: 'bold', 
-              color: '#111827', 
-              margin: 0,
-              marginBottom: '8px'
-            }}>
-              📊 Admin Overview
-            </h1>
-            <p style={{ fontSize: '16px', color: '#6b7280', margin: 0 }}>
+            <h1 className="aod-title">Operations Overview</h1>
+            <p className="aod-subtitle">
               Real-time insights and system performance metrics
             </p>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#6b7280',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span style={{ 
-                width: '8px', 
-                height: '8px', 
-                borderRadius: '50%', 
-                background: '#10b981',
-                display: 'inline-block'
-              }}></span>
+          <div className="aod-live-box">
+            <div className="aod-live-indicator">
+              <span className="aod-live-dot" />
               Live Data
             </div>
-            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+            <div className="aod-live-time">
               Last updated: {lastUpdated.toLocaleTimeString()}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-        gap: '20px',
-        marginBottom: '30px'
-      }}>
-        {/* Total Applications */}
-        <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '12px',
-          padding: '24px',
-          color: 'white',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="aod-hero-grid">
+        <div className="aod-hero-card aod-hero-blue">
+          <div className="aod-hero-inner">
             <div>
-              <h3 style={{ margin: 0, fontSize: '14px', opacity: 0.9, fontWeight: '500' }}>
+              <h3 className="aod-card-label">
                 Total Applications
               </h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', marginTop: '8px' }}>
+              <p className="aod-card-value">
                 {stats.totalApplications}
               </p>
-              <span style={{ fontSize: '12px', opacity: 0.8 }}>
+              <span className="aod-card-note">
                 {stats.totalApplications > 0 ? `${stats.totalApplications} total submissions` : 'No applications yet'}
               </span>
             </div>
-            <div style={{ fontSize: '40px', opacity: 0.8 }}>📄</div>
+            <div className="aod-card-icon">📄</div>
           </div>
         </div>
 
-        {/* Pending Reviews */}
-        <div style={{
-          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-          borderRadius: '12px',
-          padding: '24px',
-          color: 'white',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="aod-hero-card aod-hero-rose">
+          <div className="aod-hero-inner">
             <div>
-              <h3 style={{ margin: 0, fontSize: '14px', opacity: 0.9, fontWeight: '500' }}>
+              <h3 className="aod-card-label">
                 Pending Reviews
               </h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', marginTop: '8px' }}>
+              <p className="aod-card-value">
                 {stats.pendingReviews}
               </p>
-              <span style={{ fontSize: '12px', opacity: 0.8 }}>Needs attention</span>
+              <span className="aod-card-note">Needs attention</span>
             </div>
-            <div style={{ fontSize: '40px', opacity: 0.8 }}>⏳</div>
+            <div className="aod-card-icon">⏳</div>
           </div>
         </div>
 
-        {/* Interviews Scheduled */}
-        <div style={{
-          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-          borderRadius: '12px',
-          padding: '24px',
-          color: 'white',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="aod-hero-card aod-hero-teal">
+          <div className="aod-hero-inner">
             <div>
-              <h3 style={{ margin: 0, fontSize: '14px', opacity: 0.9, fontWeight: '500' }}>
+              <h3 className="aod-card-label">
                 Interviews Scheduled
               </h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', marginTop: '8px' }}>
+              <p className="aod-card-value">
                 {stats.interviewsScheduled}
               </p>
-              <span style={{ fontSize: '12px', opacity: 0.8 }}>Next 7 days</span>
+              <span className="aod-card-note">Next 7 days</span>
             </div>
-            <div style={{ fontSize: '40px', opacity: 0.8 }}>📅</div>
+            <div className="aod-card-icon">📅</div>
           </div>
         </div>
 
-        {/* Hired This Month */}
-        <div style={{
-          background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-          borderRadius: '12px',
-          padding: '24px',
-          color: 'white',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="aod-hero-card aod-hero-mint">
+          <div className="aod-hero-inner">
             <div>
-              <h3 style={{ margin: 0, fontSize: '14px', opacity: 0.9, fontWeight: '500' }}>
+              <h3 className="aod-card-label">
                 Hired This Month
               </h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', marginTop: '8px' }}>
+              <p className="aod-card-value">
                 {stats.hiredThisMonth}
               </p>
-              <span style={{ fontSize: '12px', opacity: 0.8 }}>
+              <span className="aod-card-note">
                 {stats.hiredThisMonth > 0 ? `${stats.hiredThisMonth} successful hires` : 'No hires this month'}
               </span>
             </div>
-            <div style={{ fontSize: '40px', opacity: 0.8 }}>🎉</div>
+            <div className="aod-card-icon">🎉</div>
           </div>
         </div>
       </div>
 
-      {/* Second Row Stats */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: '20px',
-        marginBottom: '30px'
-      }}>
-        <div style={{
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '20px',
-          textAlign: 'center',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>💼</div>
-          <h4 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
+      <div className="aod-meta-grid">
+        <div className="aod-mini-card">
+          <div className="aod-mini-icon">💼</div>
+          <h4 className="aod-mini-value">
             {stats.activeJobs}
           </h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>Active Jobs</p>
+          <p className="aod-mini-label">Active Jobs</p>
         </div>
 
-        <div style={{
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '20px',
-          textAlign: 'center',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>👥</div>
-          <h4 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
+        <div className="aod-mini-card">
+          <div className="aod-mini-icon">👥</div>
+          <h4 className="aod-mini-value">
             {stats.totalUsers}
           </h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>Total Users</p>
+          <p className="aod-mini-label">Total Users</p>
         </div>
 
-        <div style={{
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '20px',
-          textAlign: 'center',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>⏱️</div>
-          <h4 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
+        <div className="aod-mini-card">
+          <div className="aod-mini-icon">⏱️</div>
+          <h4 className="aod-mini-value">
             {stats.avgProcessingTime}d
           </h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>Avg Processing</p>
+          <p className="aod-mini-label">Avg Processing</p>
         </div>
 
-        <div style={{
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '20px',
-          textAlign: 'center',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>🟢</div>
-          <h4 style={{ 
-            margin: 0, 
-            fontSize: '18px', 
-            fontWeight: 'bold', 
-            color: getHealthColor(stats.systemHealth),
-            textTransform: 'capitalize'
-          }}>
+        <div className="aod-mini-card">
+          <div className="aod-mini-icon">🟢</div>
+          <h4
+            className="aod-mini-value aod-health-value"
+            style={{ color: getHealthColor(stats.systemHealth) }}
+          >
             {stats.systemHealth}
           </h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>System Health</p>
+          <p className="aod-mini-label">System Health</p>
         </div>
       </div>
 
-      {/* Recent Activity Feed */}
-      <div style={{
-        background: '#fff',
-        border: '1px solid #e5e7eb',
-        borderRadius: '12px',
-        padding: '24px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-      }}>
-        <h3 style={{ 
-          margin: 0, 
-          marginBottom: '20px', 
-          fontSize: '20px', 
-          fontWeight: 'bold', 
-          color: '#111827'
-        }}>
-          🔔 Recent Activity
-        </h3>
+      <div className="aod-activity-card">
+        <h3 className="aod-activity-title">Recent Activity</h3>
         
-        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+        <div className="aod-activity-list">
           {recentActivity.map((activity) => (
             <div 
               key={activity.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '12px 0',
-                borderBottom: '1px solid #f3f4f6'
-              }}
+              className="aod-activity-item"
             >
-              <div style={{ 
-                fontSize: '20px', 
-                marginRight: '12px',
-                width: '32px',
-                textAlign: 'center'
-              }}>
+              <div className="aod-activity-icon">
                 {getActivityIcon(activity.type)}
               </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ 
-                  margin: 0, 
-                  fontSize: '14px', 
-                  color: '#111827',
-                  fontWeight: '500'
-                }}>
+              <div className="aod-activity-content">
+                <p className="aod-activity-message">
                   {activity.message}
                 </p>
-                <p style={{ 
-                  margin: 0, 
-                  fontSize: '12px', 
-                  color: '#6b7280',
-                  marginTop: '2px'
-                }}>
+                <p className="aod-activity-meta">
                   by {activity.user} • {activity.time}
                 </p>
               </div>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: activity.priority === 'high' ? '#ef4444' : 
-                           activity.priority === 'medium' ? '#f59e0b' : '#10b981'
-              }} />
+              <div
+                className={`aod-priority-dot ${
+                  activity.priority === 'high'
+                    ? 'aod-priority-high'
+                    : activity.priority === 'medium'
+                    ? 'aod-priority-medium'
+                    : 'aod-priority-low'
+                }`}
+              />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div style={{
-        marginTop: '30px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '15px'
-      }}>
+      <div className="aod-actions-grid">
         <button 
           onClick={() => navigate('/admin/applications')}
-          style={{
-            background: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '16px',
-            fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => e.target.style.background = '#2563eb'}
-          onMouseLeave={(e) => e.target.style.background = '#3b82f6'}
+          className="aod-action-btn aod-action-btn-primary"
         >
-          📄 Review Applications
+          Review Applications
         </button>
         
         <button 
           onClick={() => navigate('/admin/jobs')}
-          style={{
-            background: '#10b981',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '16px',
-            fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => e.target.style.background = '#059669'}
-          onMouseLeave={(e) => e.target.style.background = '#10b981'}
+          className="aod-action-btn aod-action-btn-success"
         >
-          💼 Post New Job
+          Post New Job
         </button>
         
         <button 
           onClick={() => navigate('/admin/reports')}
-          style={{
-            background: '#8b5cf6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '16px',
-            fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => e.target.style.background = '#7c3aed'}
-          onMouseLeave={(e) => e.target.style.background = '#8b5cf6'}
+          className="aod-action-btn aod-action-btn-neutral"
         >
-          📊 View Reports
+          View Reports
         </button>
         
         <button 
           onClick={() => navigate('/admin/settings')}
-          style={{
-            background: '#f59e0b',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '16px',
-            fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => e.target.style.background = '#d97706'}
-          onMouseLeave={(e) => e.target.style.background = '#f59e0b'}
+          className="aod-action-btn aod-action-btn-warning"
         >
-          ⚙️ System Settings
+          System Settings
         </button>
       </div>
     </div>

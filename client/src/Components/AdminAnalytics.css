@@ -1,0 +1,142 @@
+.aa-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 12% -8%, rgba(37, 99, 235, 0.1), transparent 36%),
+    radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.09), transparent 38%),
+    #f4f7fb;
+}
+
+.aa-header-wrap {
+  margin-bottom: 24px;
+}
+
+.aa-title {
+  margin: 0;
+  font-size: 2rem;
+  color: #13212a;
+}
+
+.aa-subtitle {
+  margin: 8px 0 0;
+  color: #5f6d79;
+}
+
+.aa-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.aa-metric-card {
+  padding: 20px;
+  border-radius: 14px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
+}
+
+.aa-metric-indigo { background: linear-gradient(135deg, #1d4ed8, #312e81); }
+.aa-metric-rose { background: linear-gradient(135deg, #e11d48, #881337); }
+.aa-metric-cyan { background: linear-gradient(135deg, #0891b2, #0f766e); }
+.aa-metric-green { background: linear-gradient(135deg, #059669, #14532d); }
+
+.aa-metric-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+.aa-metric-label {
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.aa-panels-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.aa-panel-card {
+  background: #fff;
+  padding: 16px;
+  border: 1px solid #d9e2eb;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.aa-panel-title {
+  margin: 0 0 12px;
+  color: #1a2a34;
+}
+
+.aa-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-left: 4px solid #cbd5e1;
+  background: #f6f9fc;
+}
+
+.aa-job-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: #f6f9fc;
+  border-radius: 8px;
+}
+
+.aa-job-title {
+  font-size: 0.86rem;
+}
+
+.aa-bold {
+  font-weight: 700;
+}
+
+.aa-table-wrap {
+  overflow-x: auto;
+}
+
+.aa-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.aa-table th,
+.aa-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.aa-table th {
+  color: #485561;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.aa-status-pill {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: #fff;
+}
+
+.aa-date-cell {
+  font-size: 0.86rem;
+  color: #677483;
+}
+
+@media (max-width: 980px) {
+  .aa-panels-grid {
+    grid-template-columns: 1fr;
+  }
+}

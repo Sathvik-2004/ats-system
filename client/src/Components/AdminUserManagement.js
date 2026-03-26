@@ -3,7 +3,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const AdminUserManagement = () => {
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
   
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -31,60 +31,27 @@ const AdminUserManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/admin/users`, {
+      const response = await axios.get(`${API_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const usersData = response.data;
+      const usersData = response.data?.data || [];
       setUsers(usersData);
       
       // Calculate stats
       const stats = {
         totalUsers: usersData.length,
-        activeUsers: usersData.filter(user => user.status === 'active').length,
-        inactiveUsers: usersData.filter(user => user.status === 'inactive').length,
+        activeUsers: usersData.filter(user => user.isActive).length,
+        inactiveUsers: usersData.filter(user => !user.isActive).length,
         adminUsers: usersData.filter(user => user.role === 'admin').length
       };
       setUserStats(stats);
       
     } catch (error) {
       console.error('Error fetching users:', error);
-      
-      // FALLBACK: Use mock user data
-      const mockUsers = [
-        {
-          _id: 'user1',
-          name: 'Sathvik Reddy',
-          email: 'sathwikreddy9228@gmail.com',
-          role: 'user',
-          status: 'active',
-          joinedAt: new Date().toISOString(),
-          applications: 3
-        },
-        {
-          _id: 'user2',
-          name: 'Admin User',
-          email: 'admin@atsystem.com',
-          role: 'admin',
-          status: 'active',
-          joinedAt: new Date().toISOString(),
-          applications: 0
-        }
-      ];
-      
-      setUsers(mockUsers);
-      setFilteredUsers(mockUsers);
-      
-      const stats = {
-        total: mockUsers.length,
-        active: mockUsers.filter(user => user.status === 'active').length,
-        inactive: mockUsers.filter(user => user.status === 'inactive').length,
-        regularUsers: mockUsers.filter(user => user.role === 'user').length,
-        adminUsers: mockUsers.filter(user => user.role === 'admin').length
-      };
-      setUserStats(stats);
-      
-      console.log('✅ Using mock user data for admin');
+      toast.error('Failed to fetch users');
+      setUsers([]);
+      setFilteredUsers([]);
     } finally {
       setLoading(false);
     }
@@ -103,7 +70,7 @@ const AdminUserManagement = () => {
 
     // Status filter
     if (filterStatus !== 'all') {
-      filtered = filtered.filter(user => user.status === filterStatus);
+      filtered = filtered.filter(user => (user.isActive ? 'active' : 'inactive') === filterStatus);
     }
 
     setFilteredUsers(filtered);
@@ -112,13 +79,13 @@ const AdminUserManagement = () => {
   const handleStatusChange = async (userId, newStatus) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/users/${userId}/status`, 
-        { status: newStatus },
+      await axios.put(`${API_URL}/api/users/${userId}/active`, 
+        { isActive: newStatus === 'active' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
       setUsers(users.map(user => 
-        user._id === userId ? { ...user, status: newStatus } : user
+        user._id === userId ? { ...user, isActive: newStatus === 'active' } : user
       ));
       
       toast.success(`User status updated to ${newStatus}`);
@@ -135,7 +102,7 @@ const AdminUserManagement = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/api/admin/users/${userId}`, {
+      await axios.delete(`${API_URL}/api/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -260,10 +227,10 @@ const AdminUserManagement = () => {
                 borderRadius: '20px',
                 fontSize: '12px',
                 fontWeight: '600',
-                background: user.status === 'active' ? '#dcfce7' : '#fee2e2',
-                color: user.status === 'active' ? '#16a34a' : '#dc2626'
+                background: user.isActive ? '#dcfce7' : '#fee2e2',
+                color: user.isActive ? '#16a34a' : '#dc2626'
               }}>
-                {user.status || 'inactive'}
+                {user.isActive ? 'active' : 'inactive'}
               </span>
             </div>
             
@@ -525,10 +492,10 @@ const AdminUserManagement = () => {
                         borderRadius: '20px',
                         fontSize: '12px',
                         fontWeight: '600',
-                        background: user.status === 'active' ? '#dcfce7' : '#fee2e2',
-                        color: user.status === 'active' ? '#16a34a' : '#dc2626'
+                        background: user.isActive ? '#dcfce7' : '#fee2e2',
+                        color: user.isActive ? '#16a34a' : '#dc2626'
                       }}>
-                        {user.status || 'inactive'}
+                        {user.isActive ? 'active' : 'inactive'}
                       </span>
                     </td>
                     <td style={{ padding: '16px', color: '#6b7280' }}>
@@ -556,11 +523,11 @@ const AdminUserManagement = () => {
                         <button
                           onClick={() => handleStatusChange(
                             user._id, 
-                            user.status === 'active' ? 'inactive' : 'active'
+                            user.isActive ? 'inactive' : 'active'
                           )}
                           style={{
                             padding: '6px 12px',
-                            background: user.status === 'active' ? '#f59e0b' : '#10b981',
+                            background: user.isActive ? '#f59e0b' : '#10b981',
                             color: 'white',
                             border: 'none',
                             borderRadius: '6px',
@@ -568,7 +535,7 @@ const AdminUserManagement = () => {
                             cursor: 'pointer'
                           }}
                         >
-                          {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                          {user.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user._id)}

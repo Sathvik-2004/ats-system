@@ -1,9 +1,24 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import RealtimeNotifications from './RealtimeNotifications';
 
-const AdminNavbar = ({ onLogout }) => {
+const AdminNavbar = ({ onLogout, dark = false, onToggleTheme }) => {
   const location = useLocation();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const nextIsMobile = window.innerWidth < 1024;
+      setIsMobile(nextIsMobile);
+      if (!nextIsMobile) {
+        setMobileOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const adminMenuItems = [
     {
@@ -41,6 +56,12 @@ const AdminNavbar = ({ onLogout }) => {
       icon: '📅',
       label: 'Interviews',
       description: 'Interview scheduling'
+    },
+    {
+      path: '/admin/notifications',
+      icon: '🔔',
+      label: 'Notifications',
+      description: 'System notifications'
     },
     {
       path: '/admin/ai-screening',
@@ -82,17 +103,57 @@ const AdminNavbar = ({ onLogout }) => {
   };
 
   return (
+    <>
+    {isMobile && (
+      <button
+        onClick={() => setMobileOpen((prev) => !prev)}
+        style={{
+          position: 'fixed',
+          top: 12,
+          left: 12,
+          width: 44,
+          height: 44,
+          borderRadius: 10,
+          background: '#1e3a8a',
+          border: 'none',
+          color: '#fff',
+          fontSize: 20,
+          cursor: 'pointer',
+          zIndex: 1301,
+          boxShadow: '0 8px 20px rgba(30, 58, 138, 0.35)'
+        }}
+        title={mobileOpen ? 'Close menu' : 'Open menu'}
+      >
+        {mobileOpen ? '✕' : '☰'}
+      </button>
+    )}
+    {isMobile && mobileOpen && (
+      <div
+        onClick={() => setMobileOpen(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.45)',
+          zIndex: 1298
+        }}
+      />
+    )}
     <div style={{
       width: '280px',
-      background: 'linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%)',
+      background: dark ? 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%)',
       height: '100vh',
       position: 'fixed',
       left: 0,
       top: 0,
-      zIndex: 1000,
+      zIndex: 1300,
       boxShadow: '4px 0 20px rgba(0,0,0,0.1)',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      transition: 'transform 0.25s ease',
+      transform: isMobile && !mobileOpen ? 'translateX(-100%)' : 'translateX(0)'
     }}>
       {/* Admin Header */}
       <div style={{
@@ -164,6 +225,11 @@ const AdminNavbar = ({ onLogout }) => {
           <Link
             key={item.path}
             to={item.path}
+            onClick={() => {
+              if (isMobile) {
+                setMobileOpen(false);
+              }
+            }}
             style={{
               display: 'block',
               padding: '16px 24px',
@@ -213,6 +279,23 @@ const AdminNavbar = ({ onLogout }) => {
         flexShrink: 0,
         background: 'rgba(0,0,0,0.1)'
       }}>
+        <button
+          onClick={onToggleTheme}
+          style={{
+            width: '100%',
+            padding: '12px',
+            background: dark ? 'rgba(148, 163, 184, 0.2)' : 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: '8px',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            marginBottom: '12px'
+          }}
+        >
+          {dark ? '☀️ Light Mode' : '🌙 Dark Mode'}
+        </button>
         <div style={{
           background: 'rgba(255,255,255,0.1)',
           padding: '16px',
@@ -277,6 +360,7 @@ const AdminNavbar = ({ onLogout }) => {
         </button>
       </div>
     </div>
+    </>
   );
 };
 

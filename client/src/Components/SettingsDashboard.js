@@ -36,12 +36,22 @@ const SettingsDashboard = () => {
   const [newKeyword, setNewKeyword] = useState('');
   const [newLocation, setNewLocation] = useState('');
 
+  const emitThemePreference = (mode) => {
+    if (mode === 'light' || mode === 'dark' || mode === 'auto') {
+      window.dispatchEvent(new CustomEvent('themePreferenceChanged', {
+        detail: { mode }
+      }));
+    }
+  };
+
   const loadSettings = useCallback(() => {
     // Load settings from localStorage or API
     const savedSettings = localStorage.getItem('userSettings');
     if (savedSettings) {
       try {
-        setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+        const parsedSettings = JSON.parse(savedSettings);
+        setSettings(prev => ({ ...prev, ...parsedSettings }));
+        emitThemePreference(parsedSettings?.preferences?.theme);
       } catch (error) {
         console.error('Error loading settings:', error);
       }
@@ -60,6 +70,10 @@ const SettingsDashboard = () => {
         [setting]: value
       }
     }));
+
+    if (category === 'preferences' && setting === 'theme') {
+      emitThemePreference(value);
+    }
   };
 
   const handleArrayAdd = (category, field, value, newValueState, setNewValueState) => {
@@ -93,6 +107,7 @@ const SettingsDashboard = () => {
       
       // Save to localStorage
       localStorage.setItem('userSettings', JSON.stringify(settings));
+      emitThemePreference(settings?.preferences?.theme);
       
       toast.success('Settings saved successfully!');
     } catch (error) {
@@ -107,6 +122,7 @@ const SettingsDashboard = () => {
     if (window.confirm('Are you sure you want to reset all settings to default?')) {
       localStorage.removeItem('userSettings');
       loadSettings();
+      emitThemePreference('light');
       toast.info('Settings reset to default');
     }
   };
@@ -417,6 +433,67 @@ const SettingsDashboard = () => {
                 </label>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Appearance Preferences */}
+        <div style={{
+          background: '#fff',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        }}>
+          <h2 style={{
+            color: '#1f2937',
+            fontWeight: 700,
+            fontSize: '24px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}>
+            🎨 Appearance
+          </h2>
+
+          <div style={{
+            padding: '16px',
+            background: '#f8fafc',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            maxWidth: '420px',
+          }}>
+            <label style={{
+              display: 'block',
+              color: '#374151',
+              fontWeight: 600,
+              marginBottom: '8px',
+              fontSize: '14px',
+            }}>
+              Theme Mode
+            </label>
+            <select
+              value={settings.preferences.theme}
+              onChange={(e) => handleSettingChange('preferences', 'theme', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '2px solid #e5e7eb',
+                fontSize: '16px',
+                background: '#fff',
+              }}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="auto">Auto (System)</option>
+            </select>
+            <p style={{
+              color: '#6b7280',
+              fontSize: '13px',
+              margin: '10px 0 0 0',
+            }}>
+              Set to Auto to follow your device theme.
+            </p>
           </div>
         </div>
 

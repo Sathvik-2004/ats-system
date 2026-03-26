@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 export const API_ENDPOINTS = {
   // Auth endpoints
@@ -16,9 +16,9 @@ export const API_ENDPOINTS = {
   JOBS: `${API_BASE_URL}/api/jobs`,
   
   // Admin endpoints
-  ADMIN_APPLICATIONS: `${API_BASE_URL}/api/admin/applications`,
-  ADMIN_USERS: `${API_BASE_URL}/api/admin/users`,
-  ADMIN_ANALYTICS: `${API_BASE_URL}/api/admin/analytics`,
+  ADMIN_APPLICATIONS: `${API_BASE_URL}/api/applications`,
+  ADMIN_USERS: `${API_BASE_URL}/api/users`,
+  ADMIN_ANALYTICS: `${API_BASE_URL}/api/analytics/dashboard/full-data`,
   
   // Base URL for dynamic endpoints
   BASE_URL: API_BASE_URL

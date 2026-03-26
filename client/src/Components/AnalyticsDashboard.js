@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import LoadingSpinner from './common/LoadingSpinner';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
+} from 'recharts';
 
 const AnalyticsDashboard = () => {
   const [analytics, setAnalytics] = useState({
@@ -16,67 +30,44 @@ const AnalyticsDashboard = () => {
 
   const fetchAnalytics = useCallback(async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('userData');
-      
-      console.log('🔍 Debug - Token exists:', !!token);
-      console.log('🔍 Debug - UserData exists:', !!userData);
-      
-      if (!token) {
-        console.error('❌ No authentication token found');
-        toast.error('Please log in to view applications');
-        return;
-      }
 
-      console.log('📡 Making API request to fetch applications...');
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const response = await axios.get(`${API_URL}/api/auth/my-applications`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      console.log('📡 API Response:', response.data);
-      
-      if (response.data.success) {
-        const apps = response.data.applications;
-        console.log(`✅ Successfully fetched ${apps.length} applications`);
-        calculateAnalytics(apps);
-      } else {
-        console.error('❌ API returned success=false:', response.data);
-        // Use localStorage fallback instead of showing error
-        const localApplications = JSON.parse(localStorage.getItem('userApplications') || '[]');
-        if (localApplications.length > 0) {
-          calculateAnalytics(localApplications);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error fetching applications:', error);
-      
-      // FALLBACK: Use localStorage data for analytics
-      const localApplications = JSON.parse(localStorage.getItem('userApplications') || '[]');
-      console.log(`✅ Using ${localApplications.length} applications from localStorage for analytics`);
-      
-      if (localApplications.length > 0) {
-        calculateAnalytics(localApplications);
-      } else {
-        // Show demo analytics data
+      if (!token) {
+        toast.error('Please log in to view applications');
         setAnalytics({
           totalApplications: 0,
           successRate: 0,
           averageResponseTime: 0,
-          companiesApplied: 0,
-          statusBreakdown: {
-            'Pending': 0,
-            'Under Review': 0,
-            'Interview Scheduled': 0,
-            'Approved': 0,
-            'Rejected': 0
-          },
+          statusBreakdown: {},
           monthlyApplications: [],
           topCompanies: [],
         });
+        setLoading(false);
+        return;
       }
-      
-      console.log('✅ Analytics data loaded from localStorage');
+
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await axios.get(`${API_URL}/api/applications/mine`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const apps = response.data.applications || [];
+        calculateAnalytics(apps);
+      }
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+      const message = error?.response?.data?.message || 'Failed to load analytics from server';
+      toast.error(message);
+      setAnalytics({
+        totalApplications: 0,
+        successRate: 0,
+        averageResponseTime: 0,
+        statusBreakdown: {},
+        monthlyApplications: [],
+        topCompanies: [],
+      });
     } finally {
       setLoading(false);
     }
@@ -100,12 +91,32 @@ const AnalyticsDashboard = () => {
     }
 
     const total = apps.length;
-    const approved = apps.filter(app => app.status === 'Approved').length;
+    const approved = apps.filter(app => app.status === 'selected' || app.status === 'Approved').length;
     const successRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+
+    const finalized = apps.filter((app) => ['selected', 'rejected', 'Approved', 'Rejected'].includes(app.status));
+    const averageResponseTime = finalized.length
+      ? Math.round(
+          finalized.reduce((sum, app) => {
+            const created = new Date(app.createdAt || app.appliedDate || app.appliedAt || Date.now());
+            const updated = new Date(app.updatedAt || app.createdAt || Date.now());
+            return sum + Math.max(0, Math.round((updated - created) / (1000 * 60 * 60 * 24)));
+          }, 0) / finalized.length
+        )
+      : 0;
 
     // Status breakdown
     const statusBreakdown = apps.reduce((acc, app) => {
-      acc[app.status] = (acc[app.status] || 0) + 1;
+      const statusMap = {
+        applied: 'Applied',
+        reviewing: 'Screening',
+        shortlisted: 'Screening',
+        interview_scheduled: 'Interview',
+        selected: 'Offer',
+        rejected: 'Rejected'
+      };
+      const normalizedStatus = statusMap[app.status] || app.status || 'Pending';
+      acc[normalizedStatus] = (acc[normalizedStatus] || 0) + 1;
       return acc;
     }, {});
 
@@ -139,7 +150,7 @@ const AnalyticsDashboard = () => {
     setAnalytics({
       totalApplications: total,
       successRate,
-      averageResponseTime: Math.floor(Math.random() * 14) + 3, // Mock data
+      averageResponseTime,
       statusBreakdown,
       monthlyApplications: monthlyData,
       topCompanies,
@@ -148,6 +159,11 @@ const AnalyticsDashboard = () => {
 
   const getStatusColor = (status) => {
     const colors = {
+      'Applied': '#3b82f6',
+      'Screening': '#f59e0b',
+      'Interview': '#8b5cf6',
+      'Offer': '#10b981',
+      'Pending': '#3b82f6',
       'Approved': '#10b981',
       'Under Review': '#f59e0b',
       'Rejected': '#ef4444',
@@ -157,8 +173,6 @@ const AnalyticsDashboard = () => {
   };
 
   const renderChart = () => {
-    const maxCount = Math.max(...analytics.monthlyApplications.map(d => d.count));
-    
     return (
       <div style={{
         background: '#fff',
@@ -174,92 +188,29 @@ const AnalyticsDashboard = () => {
         }}>
           📈 Application Trends
         </h3>
-        <div style={{
-          display: 'flex',
-          alignItems: 'end',
-          gap: '12px',
-          height: '200px',
-          padding: '0 16px',
-        }}>
-          {analytics.monthlyApplications.map((data, index) => (
-            <div
-              key={index}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <div
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  borderRadius: '8px 8px 0 0',
-                  height: `${(data.count / (maxCount || 1)) * 160}px`,
-                  minHeight: data.count > 0 ? '20px' : '0px',
-                  transition: 'height 0.5s ease',
-                  position: 'relative',
-                }}
-              >
-                {data.count > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '-24px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    color: '#1f2937',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                  }}>
-                    {data.count}
-                  </div>
-                )}
-              </div>
-              <span style={{
-                color: '#6b7280',
-                fontSize: '12px',
-                fontWeight: 600,
-              }}>
-                {data.month}
-              </span>
-            </div>
-          ))}
+        <div style={{ width: '100%', height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={analytics.monthlyApplications}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="month" />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="count" fill="#667eea" name="Applications" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     );
   };
 
+  const statusBreakdownData = Object.entries(analytics.statusBreakdown || {}).map(([name, value]) => ({
+    name,
+    value
+  }));
+
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-        flexDirection: 'column',
-        gap: '24px',
-      }}>
-        <div style={{
-          width: '80px',
-          height: '80px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '32px',
-          animation: 'pulse 2s infinite',
-        }}>
-          📊
-        </div>
-        <p style={{ color: '#4b5563', fontSize: '18px', fontWeight: 600 }}>
-          Analyzing your data...
-        </p>
-      </div>
-    );
+    return <LoadingSpinner fullscreen label="Analyzing your data..." />;
   }
 
   return (
@@ -543,41 +494,26 @@ const AnalyticsDashboard = () => {
             }}>
               📋 Status Breakdown
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {Object.entries(analytics.statusBreakdown).map(([status, count]) => (
-                <div key={status} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}>
-                    <div style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      background: getStatusColor(status),
-                    }}></div>
-                    <span style={{
-                      color: '#4b5563',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                    }}>
-                      {status}
-                    </span>
-                  </div>
-                  <span style={{
-                    color: '#1f2937',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                  }}>
-                    {count}
-                  </span>
-                </div>
-              ))}
+            <div style={{ width: '100%', height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusBreakdownData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={85}
+                    label
+                  >
+                    {statusBreakdownData.map((entry) => (
+                      <Cell key={entry.name} fill={getStatusColor(entry.name)} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>

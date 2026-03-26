@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const AdvancedAnalyticsDashboard = () => {
   const [analytics, setAnalytics] = useState({
     overview: {
@@ -28,6 +30,7 @@ const AdvancedAnalyticsDashboard = () => {
   });
   
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [timeRange, setTimeRange] = useState('30d');
 
   useEffect(() => {
@@ -40,19 +43,20 @@ const AdvancedAnalyticsDashboard = () => {
       
       // Fetch comprehensive analytics data
       const [appsRes, jobsRes, analyticsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/admin/applications', {
+        axios.get(`${API_URL}/api/applications`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('http://localhost:5000/api/admin/jobs', {
+        axios.get(`${API_URL}/api/jobs`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`http://localhost:5000/api/admin/analytics?range=${timeRange}`, {
+        axios.get(`${API_URL}/api/analytics/dashboard/full-data`, {
           headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: {} })) // Fallback if endpoint doesn't exist yet
+        })
       ]);
 
-      const applications = appsRes.data || [];
-      const jobs = jobsRes.data || [];
+      const applications = appsRes.data?.data || [];
+      const jobs = Array.isArray(jobsRes.data) ? jobsRes.data : [];
+      const fullData = analyticsRes.data?.data || {};
 
       // Calculate metrics
       const now = new Date();
@@ -78,8 +82,8 @@ const AdvancedAnalyticsDashboard = () => {
         .slice(0, 5)
         .map(([job, count]) => ({ job, applications: count }));
 
-      const conversionRate = applications.length > 0 
-        ? ((statusCounts.approved || 0) / applications.length * 100).toFixed(1)
+      const conversionRate = applications.length > 0
+        ? ((statusCounts.selected || 0) / applications.length * 100).toFixed(1)
         : 0;
 
       // Generate monthly trend data
@@ -105,35 +109,37 @@ const AdvancedAnalyticsDashboard = () => {
         overview: {
           totalApplications: applications.length,
           totalJobs: jobs.length,
-          activeJobs: jobs.filter(job => job.status === 'active').length,
-          pendingApplications: statusCounts.pending || 0,
+          activeJobs: jobs.filter(job => job.isActive !== false).length,
+          pendingApplications: (statusCounts.applied || 0) + (statusCounts.reviewing || 0),
           thisMonthApplications: thisMonthApps.length,
           conversionRate: parseFloat(conversionRate),
-          averageTimeToHire: 12, // Mock data - could be calculated from actual hiring dates
+          averageTimeToHire: Number(fullData.metrics?.averageTimeToHire || 0),
           topPerformingJobs: topJobs
         },
         trends: {
-          applicationsByMonth: monthlyData,
+          applicationsByMonth: fullData.trend || monthlyData,
           applicationsByStatus: statusCounts,
           applicationsByJob: jobApplicationCounts,
           hiringFunnel: [
             { stage: 'Applied', count: applications.length },
-            { stage: 'Screening', count: statusCounts.underReview || 0 },
-            { stage: 'Interview', count: statusCounts.interviewScheduled || 0 },
-            { stage: 'Hired', count: statusCounts.approved || 0 }
+            { stage: 'Screening', count: statusCounts.reviewing || 0 },
+            { stage: 'Interview', count: statusCounts.interview_scheduled || 0 },
+            { stage: 'Hired', count: statusCounts.selected || 0 }
           ]
         },
         performance: {
-          responseTime: Math.random() * 200 + 100, // Mock data
-          systemUptime: 99.8,
-          activeUsers: Math.floor(Math.random() * 50) + 10,
-          emailsSent: Math.floor(Math.random() * 1000) + 500
+          responseTime: Number(fullData.performance?.responseTime || 0),
+          systemUptime: Number(fullData.performance?.systemUptime || 0),
+          activeUsers: Number(fullData.performance?.activeUsers || 0),
+          emailsSent: Number(fullData.performance?.emailsSent || 0)
         }
       });
       
+      setError('');
       setLoading(false);
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      setError(error.response?.data?.message || 'Failed to load analytics data');
       setLoading(false);
     }
   };
@@ -224,6 +230,27 @@ const AdvancedAnalyticsDashboard = () => {
     return (
       <div style={{ padding: '24px', textAlign: 'center' }}>
         <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading analytics...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '18px', color: '#dc2626', marginBottom: '12px' }}>{error}</div>
+        <button
+          onClick={fetchAnalytics}
+          style={{
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            background: '#2563eb',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          Retry
+        </button>
       </div>
     );
   }

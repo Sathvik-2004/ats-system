@@ -6,6 +6,17 @@ const NotificationCenter = ({ isOpen = true, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
+  const normalizeNotification = (item) => ({
+    id: item._id,
+    type: item.type || 'system_alert',
+    title: item.title || 'Notification',
+    message: item.message || '',
+    timestamp: item.createdAt ? new Date(item.createdAt) : new Date(),
+    read: Boolean(item.isRead),
+    priority: item.priority || 'medium',
+    actionUrl: item.actionUrl || null
+  });
+
   useEffect(() => {
     fetchNotifications();
   }, []);
@@ -13,70 +24,32 @@ const NotificationCenter = ({ isOpen = true, onClose }) => {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      
-      // Mock notifications - you can replace with actual API
-      const mockNotifications = [
-        {
-          id: 1,
-          type: 'new_application',
-          title: 'New Application Received',
-          message: 'John Doe applied for Senior Developer position',
-          timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-          read: false,
-          priority: 'high',
-          actionUrl: '/admin/applications'
-        },
-        {
-          id: 2,
-          type: 'interview_scheduled',
-          title: 'Interview Scheduled',
-          message: 'Interview with Sarah Smith scheduled for tomorrow at 2 PM',
-          timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-          read: false,
-          priority: 'medium',
-          actionUrl: '/admin/interviews'
-        },
-        {
-          id: 3,
-          type: 'system_alert',
-          title: 'System Update',
-          message: 'System maintenance completed successfully',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-          read: true,
-          priority: 'low',
-          actionUrl: null
-        },
-        {
-          id: 4,
-          type: 'job_expired',
-          title: 'Job Posting Expired',
-          message: 'Frontend Developer position expired. Renew or archive?',
-          timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-          read: false,
-          priority: 'medium',
-          actionUrl: '/admin/jobs'
-        },
-        {
-          id: 5,
-          type: 'milestone',
-          title: '100 Applications Milestone!',
-          message: 'Congratulations! You\'ve received 100 applications this month',
-          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-          read: true,
-          priority: 'low',
-          actionUrl: '/admin/analytics'
-        }
-      ];
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-      setNotifications(mockNotifications);
+      const items = Array.isArray(response.data?.data) ? response.data.data : [];
+      setNotifications(items.map(normalizeNotification));
       setLoading(false);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setNotifications([]);
       setLoading(false);
     }
   };
 
   const markAsRead = async (notificationId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/notifications/${notificationId}/read`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (_error) {
+      // UI state still updates below
+    }
+
     setNotifications(prev => 
       prev.map(notif => 
         notif.id === notificationId ? { ...notif, read: true } : notif
@@ -85,6 +58,17 @@ const NotificationCenter = ({ isOpen = true, onClose }) => {
   };
 
   const markAllAsRead = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/notifications/read-all`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (_error) {
+      // UI state still updates below
+    }
+
     setNotifications(prev => 
       prev.map(notif => ({ ...notif, read: true }))
     );

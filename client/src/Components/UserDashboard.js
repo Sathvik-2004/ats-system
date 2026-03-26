@@ -2,11 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import ApplicationForm from './ApplicationForm';
+import { connectSocket } from '../utils/socket.js';
+import LoadingSpinner from './common/LoadingSpinner';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 const UserDashboard = () => {
   const [user, setUser] = useState(null);
   const [stats, setStats] = useState({});
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingData, setLoadingData] = useState(true);
   const navigate = useNavigate();
+
+  const displayName = user?.name?.trim()
+    || user?.email?.split('@')?.[0]
+    || 'Candidate';
 
   useEffect(() => {
     const userData = localStorage.getItem('userData');
@@ -19,16 +30,51 @@ const UserDashboard = () => {
     }
 
     if (userData) {
-      setUser(JSON.parse(userData));
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser && typeof parsedUser === 'object' ? parsedUser : null);
+      } catch (_error) {
+        setUser(null);
+      }
     }
 
-    fetchStats();
+    const initData = async () => {
+      await Promise.all([fetchStats(), fetchNotifications()]);
+      setLoadingData(false);
+    };
+
+    initData();
   }, [navigate]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const socket = connectSocket(token);
+    if (!socket) return undefined;
+
+    const handleRealtimeUpdate = () => {
+      fetchStats();
+      fetchNotifications();
+    };
+
+    socket.on('application:new', handleRealtimeUpdate);
+    socket.on('application:status-updated', handleRealtimeUpdate);
+    socket.on('application:withdrawn', handleRealtimeUpdate);
+    socket.on('interview:scheduled', handleRealtimeUpdate);
+    socket.on('notification:new', handleRealtimeUpdate);
+
+    return () => {
+      socket.off('application:new', handleRealtimeUpdate);
+      socket.off('application:status-updated', handleRealtimeUpdate);
+      socket.off('application:withdrawn', handleRealtimeUpdate);
+      socket.off('interview:scheduled', handleRealtimeUpdate);
+      socket.off('notification:new', handleRealtimeUpdate);
+    };
+  }, []);
 
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/auth/application-stats', {
+      const response = await axios.get(`${API_URL}/api/auth/application-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -40,31 +86,29 @@ const UserDashboard = () => {
     }
   };
 
-  if (!user) {
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await axios.get(`${API_URL}/api/notifications?limit=5`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data?.success) {
+        setNotifications(response.data.data || []);
+        setUnreadCount(response.data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  };
+
+  if (!user || loadingData) {
     return (
-      <div style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f7f9fb',
-      }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          border: '4px solid #e2e8f0',
-          borderTop: '4px solid #3182ce',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }}>
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      </div>
+      <LoadingSpinner fullscreen label="Loading dashboard..." />
     );
   }
 
@@ -185,7 +229,7 @@ const UserDashboard = () => {
                 fontWeight: 700,
                 textShadow: '0 2px 4px rgba(0,0,0,0.1)',
               }}>
-                Welcome back, {user.name}! 👋
+                Welcome back, {displayName}! 👋
               </h1>
               <p style={{
                 margin: '12px 0 0 0',
@@ -249,6 +293,47 @@ const UserDashboard = () => {
 
       {/* Enhanced Application Section */}
       <div style={{ padding: '32px' }}>
+        <div style={{
+          maxWidth: '800px',
+          margin: '0 auto 20px auto',
+          background: '#fff',
+          borderRadius: '16px',
+          padding: '20px',
+          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '12px'
+          }}>
+            <h3 style={{ margin: 0, color: '#1f2937' }}>Notifications</h3>
+            <span style={{
+              background: unreadCount > 0 ? '#fee2e2' : '#e5e7eb',
+              color: unreadCount > 0 ? '#b91c1c' : '#374151',
+              borderRadius: '999px',
+              padding: '4px 10px',
+              fontSize: '12px',
+              fontWeight: 700
+            }}>
+              {unreadCount} unread
+            </span>
+          </div>
+          {notifications.length === 0 ? (
+            <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>No notifications yet.</p>
+          ) : (
+            notifications.map((item) => (
+              <div key={item._id} style={{
+                padding: '10px 0',
+                borderTop: '1px solid #f1f5f9'
+              }}>
+                <div style={{ fontWeight: 600, color: '#111827', fontSize: '14px' }}>{item.title}</div>
+                <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.message}</div>
+              </div>
+            ))
+          )}
+        </div>
+
         <div style={{
           background: '#fff',
           borderRadius: '20px',

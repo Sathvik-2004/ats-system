@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const EmailTemplateDesigner = () => {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -122,34 +124,17 @@ Best regards,
   const fetchTemplates = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/email-templates', {
+      const response = await axios.get(`${API_URL}/api/email-templates`, {
         headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => ({
-        data: generateMockTemplates()
-      }));
+      });
       
-      setTemplates(response.data);
+      setTemplates(response.data?.data || []);
     } catch (error) {
       console.error('Error fetching templates:', error);
-      setTemplates(generateMockTemplates());
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateMockTemplates = () => {
-    return Object.entries(defaultTemplates).map(([type, template], index) => ({
-      _id: `template_${index}`,
-      name: templateTypes.find(t => t.value === type)?.label || type,
-      type,
-      subject: template.subject,
-      content: template.content,
-      variables: extractVariables(template.content + ' ' + template.subject),
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      usageCount: Math.floor(Math.random() * 100)
-    }));
   };
 
   const extractVariables = (text) => {
@@ -174,26 +159,22 @@ Best regards,
       let response;
       if (selectedTemplate) {
         response = await axios.put(
-          `http://localhost:5000/api/admin/email-templates/${selectedTemplate._id}`,
+          `${API_URL}/api/email-templates/${selectedTemplate._id}`,
           templateData,
           { headers: { Authorization: `Bearer ${token}` } }
-        ).catch(() => ({
-          data: { ...templateData, _id: selectedTemplate._id, updatedAt: new Date().toISOString() }
-        }));
+        );
       } else {
         response = await axios.post(
-          'http://localhost:5000/api/admin/email-templates',
+          `${API_URL}/api/email-templates`,
           templateData,
           { headers: { Authorization: `Bearer ${token}` } }
-        ).catch(() => ({
-          data: { ...templateData, _id: `template_${Date.now()}`, createdAt: new Date().toISOString() }
-        }));
+        );
       }
 
       if (selectedTemplate) {
-        setTemplates(prev => prev.map(t => t._id === selectedTemplate._id ? response.data : t));
+        setTemplates(prev => prev.map(t => t._id === selectedTemplate._id ? response.data.data : t));
       } else {
-        setTemplates(prev => [...prev, response.data]);
+        setTemplates(prev => [...prev, response.data.data]);
       }
 
       setIsEditing(false);

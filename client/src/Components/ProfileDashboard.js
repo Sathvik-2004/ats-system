@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { toast } from 'react-toastify';
+import LoadingSpinner from './common/LoadingSpinner';
+import RequestErrorState from './common/RequestErrorState';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+const PROFILE_DRAFT_KEY = 'profileDraft_v1';
 
 const ProfileDashboard = () => {
   const [profile, setProfile] = useState({
@@ -17,11 +23,18 @@ const ProfileDashboard = () => {
     preferredJobType: '',
     expectedSalary: '',
     availability: '',
+    resumeFilename: '',
+    resumeUrl: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [parsingResume, setParsingResume] = useState(false);
   const [newSkill, setNewSkill] = useState('');
+  const [resumeText, setResumeText] = useState('');
+  const [lastSyncAt, setLastSyncAt] = useState(null);
   const [profileCompletion, setProfileCompletion] = useState(0);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const calculateCompletion = useCallback(() => {
     const fields = [
@@ -35,31 +48,123 @@ const ProfileDashboard = () => {
   }, [profile]);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    let loadedDraft = false;
+    try {
+      const rawDraft = localStorage.getItem(PROFILE_DRAFT_KEY);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft);
+        if (parsed && parsed.profile) {
+          setProfile((prev) => ({ ...prev, ...parsed.profile }));
+          setNewSkill(parsed.newSkill || '');
+          setResumeText(parsed.resumeText || '');
+          setHasUnsavedChanges(true);
+          setLoading(false);
+          loadedDraft = true;
+        }
+      }
+    } catch (_error) {
+      localStorage.removeItem(PROFILE_DRAFT_KEY);
+    }
+
+    if (!loadedDraft) {
+      loadProfile();
+    }
+
+    const intervalId = setInterval(() => {
+      if (!hasUnsavedChanges) {
+        loadProfile({ silent: true });
+      }
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     calculateCompletion();
   }, [profile, calculateCompletion]);
 
-  const loadProfile = async () => {
+  const loadProfile = async ({ silent = false, force = false } = {}) => {
     try {
-      const userData = JSON.parse(localStorage.getItem('userData'));
-      if (userData) {
-        setProfile(prev => ({
+      if (hasUnsavedChanges && !force) {
+        return;
+      }
+
+      setLoadError('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/users/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const data = response.data.data || {};
+        setProfile((prev) => ({
           ...prev,
-          name: userData.name || '',
-          email: userData.email || '',
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          location: data.location || '',
+          skills: Array.isArray(data.skills) ? data.skills : [],
+          experience: data.experience || '',
+          education: data.education || '',
+          summary: data.summary || '',
+          linkedIn: data.linkedIn || '',
+          github: data.github || '',
+          portfolio: data.portfolio || '',
+          preferredJobType: data.preferredJobType || '',
+          expectedSalary: data.expectedSalary || '',
+          availability: data.availability || '',
+          resumeFilename: data?.resume?.filename || '',
+          resumeUrl: data?.resume?.url || ''
         }));
+        setLastSyncAt(new Date());
       }
     } catch (error) {
       console.error('Error loading profile:', error);
+      setLoadError(error?.response?.data?.message || 'Failed to load profile');
+      if (!silent) {
+        toast.error('Failed to load profile');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleParseResume = async () => {
+    if (!resumeText.trim()) {
+      toast.warning('Paste resume text before parsing');
+      return;
+    }
+
+    try {
+      setParsingResume(true);
+      setLoadError('');
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API_URL}/api/users/me/resume/parse`,
+        { text: resumeText },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const extractedSkills = response?.data?.data?.extractedSkills || [];
+      setHasUnsavedChanges(true);
+      setProfile((prev) => ({
+        ...prev,
+        skills: Array.from(new Set([...(prev.skills || []), ...extractedSkills]))
+      }));
+      toast.success(`Resume parsed successfully (${extractedSkills.length} skills extracted)`);
+    } catch (error) {
+      setLoadError(error?.response?.data?.message || 'Failed to parse resume');
+      toast.error(error?.response?.data?.message || 'Failed to parse resume');
+    } finally {
+      setParsingResume(false);
     }
   };
 
   const handleInputChange = (field, value) => {
+    setHasUnsavedChanges(true);
     setProfile(prev => ({
       ...prev,
       [field]: value
@@ -68,6 +173,7 @@ const ProfileDashboard = () => {
 
   const addSkill = () => {
     if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
+      setHasUnsavedChanges(true);
       setProfile(prev => ({
         ...prev,
         skills: [...prev.skills, newSkill.trim()]
@@ -77,6 +183,7 @@ const ProfileDashboard = () => {
   };
 
   const removeSkill = (skillToRemove) => {
+    setHasUnsavedChanges(true);
     setProfile(prev => ({
       ...prev,
       skills: prev.skills.filter(skill => skill !== skillToRemove)
@@ -86,18 +193,42 @@ const ProfileDashboard = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Simulate API call - in real app, this would save to backend
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Update localStorage with new profile data
-      const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
-      const updatedUserData = {
-        ...currentUserData,
-        ...profile
-      };
-      localStorage.setItem('userData', JSON.stringify(updatedUserData));
+      const token = localStorage.getItem('token');
+
+      await axios.put(
+        `${API_URL}/api/users/me`,
+        {
+          name: profile.name,
+          phone: profile.phone,
+          location: profile.location,
+          skills: profile.skills,
+          experience: profile.experience,
+          education: profile.education,
+          summary: profile.summary,
+          linkedIn: profile.linkedIn,
+          github: profile.github,
+          portfolio: profile.portfolio,
+          preferredJobType: profile.preferredJobType,
+          expectedSalary: profile.expectedSalary,
+          availability: profile.availability
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (profile.resumeFilename && profile.resumeUrl) {
+        await axios.put(
+          `${API_URL}/api/users/me/resume`,
+          {
+            filename: profile.resumeFilename,
+            url: profile.resumeUrl
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
       
       toast.success('Profile updated successfully!');
+      localStorage.removeItem(PROFILE_DRAFT_KEY);
+      setHasUnsavedChanges(false);
     } catch (error) {
       toast.error('Failed to update profile');
       console.error('Error saving profile:', error);
@@ -106,35 +237,28 @@ const ProfileDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    if (loading || !hasUnsavedChanges) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        PROFILE_DRAFT_KEY,
+        JSON.stringify({
+          profile,
+          newSkill,
+          resumeText,
+          updatedAt: new Date().toISOString()
+        })
+      );
+    } catch (_error) {
+      // Ignore storage quota issues to avoid blocking form interaction.
+    }
+  }, [profile, newSkill, resumeText, hasUnsavedChanges, loading]);
+
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-        flexDirection: 'column',
-        gap: '24px',
-      }}>
-        <div style={{
-          width: '80px',
-          height: '80px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '32px',
-          animation: 'pulse 2s infinite',
-        }}>
-          👤
-        </div>
-        <p style={{ color: '#4b5563', fontSize: '18px', fontWeight: 600 }}>
-          Loading your profile...
-        </p>
-      </div>
-    );
+    return <LoadingSpinner fullscreen label="Loading your profile..." />;
   }
 
   return (
@@ -165,6 +289,14 @@ const ProfileDashboard = () => {
           position: 'relative',
           zIndex: 1,
         }}>
+          {loadError && (
+            <RequestErrorState
+              compact
+              message={loadError}
+              onRetry={() => loadProfile({ force: true })}
+            />
+          )}
+
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -206,8 +338,51 @@ const ProfileDashboard = () => {
                 }}>
                   Complete your profile to get better job matches
                 </p>
+                <p style={{
+                  margin: '10px 0 0 0',
+                  fontSize: 14,
+                  opacity: 0.95,
+                  fontWeight: 500,
+                }}>
+                  {lastSyncAt ? `Live • Updated ${lastSyncAt.toLocaleTimeString()}` : 'Live updates enabled'}
+                </p>
               </div>
             </div>
+            <button
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  const confirmed = window.confirm('You have unsaved profile changes. Refresh and discard local draft?');
+                  if (!confirmed) return;
+                  localStorage.removeItem(PROFILE_DRAFT_KEY);
+                  setHasUnsavedChanges(false);
+                }
+                loadProfile({ force: true });
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.18)',
+                color: '#fff',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                borderRadius: '10px',
+                padding: '10px 16px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Refresh Profile
+            </button>
+            {hasUnsavedChanges && (
+              <span style={{
+                fontSize: '12px',
+                background: 'rgba(251, 191, 36, 0.2)',
+                border: '1px solid rgba(251, 191, 36, 0.4)',
+                color: '#fef3c7',
+                padding: '6px 10px',
+                borderRadius: '999px',
+                marginLeft: '10px'
+              }}>
+                Unsaved changes kept locally
+              </span>
+            )}
             
             {/* Profile Completion Circle */}
             <div style={{
@@ -463,7 +638,10 @@ const ProfileDashboard = () => {
                 <input
                   type="text"
                   value={newSkill}
-                  onChange={(e) => setNewSkill(e.target.value)}
+                  onChange={(e) => {
+                    setHasUnsavedChanges(true);
+                    setNewSkill(e.target.value);
+                  }}
                   placeholder="Add a skill (e.g., React, Python)"
                   style={{
                     flex: 1,
@@ -811,6 +989,104 @@ const ProfileDashboard = () => {
               </select>
             </div>
           </div>
+        </div>
+
+        <div style={{
+          background: '#fff',
+          borderRadius: '20px',
+          padding: '32px',
+          marginBottom: '24px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+        }}>
+          <h2 style={{ marginTop: 0, color: '#1f2937' }}>Resume Management</h2>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '20px',
+          }}>
+            <div>
+              <label style={{ display: 'block', color: '#374151', fontWeight: 600, marginBottom: '8px', fontSize: '14px' }}>
+                Resume File Name
+              </label>
+              <input
+                type="text"
+                value={profile.resumeFilename}
+                onChange={(e) => handleInputChange('resumeFilename', e.target.value)}
+                placeholder="resume.pdf"
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '2px solid #e5e7eb', fontSize: '16px' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', color: '#374151', fontWeight: 600, marginBottom: '8px', fontSize: '14px' }}>
+                Resume URL
+              </label>
+              <input
+                type="url"
+                value={profile.resumeUrl}
+                onChange={(e) => handleInputChange('resumeUrl', e.target.value)}
+                placeholder="https://.../resume.pdf"
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '2px solid #e5e7eb', fontSize: '16px' }}
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: '20px' }}>
+            <label style={{ display: 'block', color: '#374151', fontWeight: 600, marginBottom: '8px', fontSize: '14px' }}>
+              Resume Text (for AI skill extraction)
+            </label>
+            <textarea
+              value={resumeText}
+              onChange={(e) => {
+                setHasUnsavedChanges(true);
+                setResumeText(e.target.value);
+              }}
+              placeholder="Paste resume text here and click Parse Resume"
+              rows={6}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '2px solid #e5e7eb',
+                fontSize: '15px',
+                resize: 'vertical'
+              }}
+            />
+            <div style={{ marginTop: '12px' }}>
+              <button
+                onClick={handleParseResume}
+                disabled={parsingResume}
+                style={{
+                  background: parsingResume ? '#9ca3af' : '#7c3aed',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  fontWeight: 600,
+                  cursor: parsingResume ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {parsingResume ? 'Parsing Resume...' : 'Parse Resume'}
+              </button>
+            </div>
+          </div>
+          {profile.resumeUrl && (
+            <div style={{ marginTop: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <a
+                href={profile.resumeUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ background: '#2563eb', color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: '8px', fontWeight: 600 }}
+              >
+                Preview Resume
+              </a>
+              <a
+                href={profile.resumeUrl}
+                download={profile.resumeFilename || 'resume.pdf'}
+                style={{ background: '#059669', color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: '8px', fontWeight: 600 }}
+              >
+                Download Resume
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Save Button */}

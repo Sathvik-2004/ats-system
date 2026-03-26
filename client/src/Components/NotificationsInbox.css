@@ -1,0 +1,132 @@
+.ni-page {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(34, 197, 94, 0.08), transparent 35%),
+    #f5f8fb;
+}
+
+.ni-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ni-title {
+  margin: 0;
+  color: #13212b;
+  font-size: 1.7rem;
+}
+
+.ni-subtitle {
+  margin: 6px 0 0;
+  color: #677583;
+  font-size: 0.9rem;
+}
+
+.ni-list-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.ni-card {
+  border: 1px solid #dce4ec;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+
+.ni-read {
+  background: #fff;
+}
+
+.ni-unread {
+  background: #ebf4ff;
+}
+
+.ni-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ni-time-text {
+  color: #667584;
+  font-size: 0.75rem;
+}
+
+.ni-message {
+  margin: 6px 0 0;
+  color: #344150;
+}
+
+.ni-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ni-btn-primary {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.ni-btn-secondary {
+  margin-top: 8px;
+  background: #334155;
+  color: #fff;
+}
+
+.ni-empty-state {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #667585;
+  padding: 18px;
+  text-align: center;
+}
+
+.ni-skeleton-stack {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ni-item-skeleton {
+  height: 72px;
+  border-radius: 12px;
+  background: #e8eef4;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 120%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent);
+  animation: ni-shimmer 1.25s infinite;
+}
+
+@keyframes ni-shimmer {
+  from { left: -120%; }
+  to { left: 130%; }
+}
+
+@media (max-width: 760px) {
+  .ni-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

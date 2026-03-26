@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const SystemSettings = () => {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -8,6 +10,18 @@ const SystemSettings = () => {
   const [activeTab, setActiveTab] = useState('autoProcessing');
   const [message, setMessage] = useState('');
   const [pendingUpdates, setPendingUpdates] = useState({});
+
+  const emitThemePreference = (mode) => {
+    if (localStorage.getItem('userType') !== 'user') {
+      return;
+    }
+
+    if (mode === 'light' || mode === 'dark' || mode === 'auto') {
+      window.dispatchEvent(new CustomEvent('themePreferenceChanged', {
+        detail: { mode }
+      }));
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -21,78 +35,21 @@ const SystemSettings = () => {
       }
       
       console.log('🔍 Debug: Making API call to fetch settings...');
-      const response = await axios.get('http://localhost:5000/api/admin/settings', {
+      const response = await axios.get(`${API_URL}/api/settings`, {
         headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => ({
-        data: {
-          settings: generateMockSettings()
-        }
-      }));
+      });
       
       console.log('🔍 Debug: API response:', response.data);
       setSettings(response.data.settings);
+      emitThemePreference(response.data?.settings?.system?.theme?.mode);
       setLoading(false);
     } catch (error) {
       console.error('❌ Error fetching settings:', error);
       console.error('❌ Error response:', error.response?.data);
-      setMessage('Failed to load settings, using defaults');
-      // Fallback to mock settings
-      setSettings(generateMockSettings());
+      setMessage('Failed to load settings from server');
+      setSettings(null);
       setLoading(false);
     }
-  };
-
-  const generateMockSettings = () => {
-    return {
-      autoProcessing: {
-        enabled: true,
-        approvalThreshold: 85,
-        interviewThreshold: 70,
-        rejectionThreshold: 40,
-        autoNotifyApplicants: true,
-        autoScheduleInterviews: false,
-        processingDelay: 24
-      },
-      application: {
-        maxFileSizeMB: 10,
-        allowedFileTypes: ['pdf', 'doc', 'docx'],
-        autoCloseAfterDays: 30,
-        requireCoverLetter: false,
-        allowMultipleApplications: false,
-        sendConfirmationEmail: true
-      },
-      system: {
-        companyInfo: {
-          name: 'Your Company',
-          website: 'https://company.com',
-          address: '123 Business St, City, State',
-          phone: '(555) 123-4567',
-          email: 'hr@company.com'
-        },
-        emailSettings: {
-          smtpHost: 'smtp.company.com',
-          smtpPort: 587,
-          smtpUser: 'noreply@company.com',
-          smtpSecure: true,
-          fromName: 'HR Team',
-          fromEmail: 'hr@company.com'
-        },
-        backupSettings: {
-          autoBackup: true,
-          backupFrequency: 'daily',
-          retentionDays: 30,
-          backupLocation: 'local'
-        }
-      },
-      notifications: {
-        emailNotifications: true,
-        smsNotifications: false,
-        pushNotifications: true,
-        notifyOnNewApplication: true,
-        notifyOnStatusChange: true,
-        digestFrequency: 'daily'
-      }
-    };
   };
 
   useEffect(() => {
@@ -120,12 +77,13 @@ const SystemSettings = () => {
         const token = localStorage.getItem('token');
         const updateData = { [section]: data };
         
-        const response = await axios.put('http://localhost:5000/api/admin/settings', updateData, {
+        const response = await axios.put(`${API_URL}/api/settings`, updateData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         // Update with server response to ensure consistency
         setSettings(response.data.settings);
+        emitThemePreference(response.data?.settings?.system?.theme?.mode);
         setMessage('Settings saved successfully!');
         setTimeout(() => setMessage(''), 3000);
       } catch (error) {
@@ -232,7 +190,7 @@ const SystemSettings = () => {
       const token = localStorage.getItem('token');
       const updateData = { [section]: data };
       
-      const response = await axios.put('http://localhost:5000/api/admin/settings', updateData, {
+      const response = await axios.put(`${API_URL}/api/settings`, updateData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -255,11 +213,12 @@ const SystemSettings = () => {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/admin/settings/reset', {}, {
+      const response = await axios.post(`${API_URL}/api/settings/reset`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       setSettings(response.data.settings);
+      emitThemePreference(response.data?.settings?.system?.theme?.mode || 'light');
       setMessage('Settings reset to default values');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -270,10 +229,33 @@ const SystemSettings = () => {
     }
   };
 
-  if (loading || !settings) {
+  if (loading) {
     return (
       <div style={{ padding: '24px', textAlign: 'center' }}>
         <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading settings...</div>
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '18px', color: '#dc2626', marginBottom: '12px' }}>
+          {message || 'Failed to load settings from server'}
+        </div>
+        <button
+          onClick={fetchSettings}
+          style={{
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            background: '#2563eb',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -466,6 +448,38 @@ const SystemSettings = () => {
         </h3>
         
         <div style={{ display: 'grid', gap: '25px' }}>
+          <div>
+            <h4 style={{ marginBottom: '15px', color: '#374151', fontSize: '16px', fontWeight: '600' }}>
+              Appearance
+            </h4>
+            <div style={{ maxWidth: '320px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
+                Theme Mode
+              </label>
+              <select
+                value={settings.system.theme?.mode || 'light'}
+                onChange={(e) => updateSettings('system', {
+                  ...settings.system,
+                  theme: {
+                    ...settings.system.theme,
+                    mode: e.target.value
+                  }
+                })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto (System)</option>
+              </select>
+            </div>
+          </div>
+
           <div>
             <h4 style={{ marginBottom: '15px', color: '#374151', fontSize: '16px', fontWeight: '600' }}>
               Company Information

@@ -1,13 +1,15 @@
 // client/src/pages/AdminView.js
 import React, { useEffect, useState } from 'react';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const AdminView = () => {
   const [applications, setApplications] = useState([]);
 
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/applications');
+        const response = await fetch(`${API_URL}/api/applications`);
         const data = await response.json();
         setApplications(data);
       } catch (err) {

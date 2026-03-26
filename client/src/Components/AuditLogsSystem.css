@@ -1,0 +1,141 @@
+.als-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(2, 132, 199, 0.08), transparent 40%),
+    #f5f8fb;
+}
+
+.als-title {
+  margin: 0;
+  color: #13212a;
+  font-size: 1.8rem;
+}
+
+.als-subtitle {
+  margin: 8px 0 14px;
+  color: #63717f;
+}
+
+.als-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.als-input {
+  padding: 10px 12px;
+  border: 1px solid #d7e1eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.als-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a5966;
+  font-size: 0.9rem;
+}
+
+.als-updated {
+  margin-left: auto;
+  color: #6a7783;
+  font-size: 0.8rem;
+}
+
+.als-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.als-btn-primary { background: #1d4ed8; }
+.als-btn-secondary { background: #334155; }
+
+.als-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dae3ec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.als-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.als-table thead tr {
+  background: #f4f8fc;
+}
+
+.als-table th,
+.als-table td {
+  text-align: left;
+  padding: 10px;
+  border-top: 1px solid #edf2f7;
+}
+
+.als-table th {
+  border-top: none;
+  color: #4a5763;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.als-details-cell {
+  max-width: 280px;
+  color: #364351;
+  font-size: 0.82rem;
+}
+
+.als-empty-state {
+  padding: 16px;
+  color: #6c7987;
+}
+
+.als-header-skeleton,
+.als-controls-skeleton,
+.als-table-skeleton {
+  border-radius: 12px;
+  background: #e9eef4;
+}
+
+.als-header-skeleton { height: 70px; }
+.als-controls-skeleton { height: 46px; margin-top: 12px; }
+.als-table-skeleton { height: 250px; margin-top: 12px; }
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 120%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: als-shimmer 1.3s infinite;
+}
+
+@keyframes als-shimmer {
+  from { left: -120%; }
+  to { left: 130%; }
+}
+
+@media (max-width: 760px) {
+  .als-updated {
+    margin-left: 0;
+    width: 100%;
+  }
+}

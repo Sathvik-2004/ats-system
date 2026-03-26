@@ -10,12 +10,12 @@ export const API_CONFIG = {
     USER_REGISTER: `${API_BASE_URL}/api/auth/user-register`,
     
     // Admin endpoints
-    ADMIN_APPLICATIONS: `${API_BASE_URL}/api/admin/applications`,
-    ADMIN_ANALYTICS: `${API_BASE_URL}/api/admin/analytics`,
-    ADMIN_JOBS: `${API_BASE_URL}/api/admin/jobs`,
-    ADMIN_USERS: `${API_BASE_URL}/api/admin/users`,
-    ADMIN_SETTINGS: `${API_BASE_URL}/api/admin/settings`,
-    ADMIN_AUTO_PROCESS: `${API_BASE_URL}/api/admin/auto-process`,
+    ADMIN_APPLICATIONS: `${API_BASE_URL}/api/applications`,
+    ADMIN_ANALYTICS: `${API_BASE_URL}/api/analytics/dashboard/full-data`,
+    ADMIN_JOBS: `${API_BASE_URL}/api/jobs`,
+    ADMIN_USERS: `${API_BASE_URL}/api/users`,
+    ADMIN_SETTINGS: `${API_BASE_URL}/api/settings`,
+    ADMIN_AUTO_PROCESS: `${API_BASE_URL}/api/applications/bulk/update-status`,
     
     // Job endpoints
     JOBS: `${API_BASE_URL}/api/jobs`,

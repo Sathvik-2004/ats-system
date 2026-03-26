@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const UserLogin = ({ onLogin }) => {
   const [formData, setFormData] = useState({
     email: '',
@@ -23,37 +25,22 @@ const UserLogin = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      console.log('🌍 User Login - Environment API_URL:', process.env.REACT_APP_API_URL);
-      console.log('📡 User Login - Final API_URL:', API_URL);
-      console.log('📡 User Login - Sending request to:', `${API_URL}/api/auth/user-login`);
-      console.log('📤 User Login - Request payload:', formData);
+      const response = await axios.post(`${API_URL}/api/auth/user-login`, formData);
+      const payload = response.data?.data || response.data;
       
-      let response;
-      
-      // TEMPORARY FIX: Since Railway backend user endpoint has issues,
-      // create a mock successful response for development
-      if (formData.email === 'sathwikreddy9228@gmail.com' && formData.password) {
-        response = {
-          data: {
-            success: true,
-            token: 'mock-user-token-' + Date.now(),
-            user: { email: formData.email, name: 'Sathwik Reddy', id: 'mock-id' }
-          }
-        };
-        console.log('✅ Using mock user login for development');
-      } else {
-        response = await axios.post(`${API_URL}/api/auth/user-login`, formData);
-      }
-      
-      if (response.data.success) {
-        localStorage.setItem('token', response.data.token);
+      if (response.data.success && payload?.token) {
+        localStorage.setItem('token', payload.token);
+        if (payload.refreshToken) {
+          localStorage.setItem('refreshToken', payload.refreshToken);
+        }
         localStorage.setItem('userType', 'user');
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
+        localStorage.setItem('userData', JSON.stringify(payload.user || {}));
         
         toast.success('Login successful!');
-        onLogin(response.data.token, 'user');
+        onLogin(payload.token, 'user');
         navigate('/dashboard');
+      } else {
+        toast.error(response.data?.message || 'Login failed. Please try again.');
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Invalid credentials. Please try again.');

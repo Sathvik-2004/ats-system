@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const QuickActionsWidget = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -68,44 +70,71 @@ const QuickActionsWidget = () => {
           break;
           
         case 'bulk-process':
-          const processRes = await axios.post('http://localhost:5000/api/admin/bulk-process', {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          }).catch(() => ({ data: { processed: Math.floor(Math.random() * 50) + 10 } }));
-          
-          alert(`✅ Processed ${processRes.data.processed} applications successfully!`);
+          {
+            const applicationsRes = await axios.get(`${API_URL}/api/applications`, {
+              headers: { Authorization: `Bearer ${token}` },
+              params: { page: 1, limit: 100, status: 'applied' }
+            });
+
+            const pendingIds = (applicationsRes.data?.data || []).map((item) => item._id);
+            if (pendingIds.length === 0) {
+              alert('✅ No pending applications to process right now.');
+              break;
+            }
+
+            await axios.post(
+              `${API_URL}/api/applications/bulk/update-status`,
+              { applicationIds: pendingIds, status: 'reviewing' },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            alert(`✅ Processed ${pendingIds.length} applications successfully!`);
+          }
           break;
           
         case 'send-emails':
-          const emailRes = await axios.post('http://localhost:5000/api/admin/send-campaign', {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          }).catch(() => ({ data: { sent: Math.floor(Math.random() * 100) + 50 } }));
-          
-          alert(`📧 Sent ${emailRes.data.sent} emails successfully!`);
+          {
+            const [templatesRes, recipientsRes] = await Promise.all([
+              axios.get(`${API_URL}/api/email-templates`, {
+                headers: { Authorization: `Bearer ${token}` }
+              }),
+              axios.get(`${API_URL}/api/applications`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { page: 1, limit: 100 }
+              })
+            ]);
+
+            const templateCount = (templatesRes.data?.data || []).length;
+            const recipientCount = (recipientsRes.data?.data || []).length;
+            alert(`📧 Campaign prepared with ${templateCount} templates for ${recipientCount} candidates.`);
+          }
           break;
           
         case 'generate-report':
-          // Mock report generation
-          setTimeout(() => {
+          {
+            const reportRes = await axios.get(`${API_URL}/api/reports/applications-per-job/csv`, {
+              headers: { Authorization: `Bearer ${token}` },
+              responseType: 'blob'
+            });
+
+            const url = window.URL.createObjectURL(new Blob([reportRes.data], { type: 'text/csv' }));
             const link = document.createElement('a');
-            link.href = 'data:text/plain;charset=utf-8,Mock Report Data - Generated at ' + new Date().toISOString();
-            link.download = `ATS-Report-${new Date().toISOString().split('T')[0]}.txt`;
+            link.href = url;
+            link.download = `ATS-Report-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
             alert('📊 Report generated and downloaded successfully!');
-          }, 2000);
+          }
           break;
           
         case 'backup-data':
-          // Mock backup
-          setTimeout(() => {
-            alert('💾 System backup completed successfully!');
-          }, 3000);
+          alert('⚠️ Backup endpoint is not configured yet.');
           break;
           
         case 'sync-integrations':
-          // Mock sync
-          setTimeout(() => {
-            alert('🔄 Integration sync completed successfully!');
-          }, 1500);
+          alert('⚠️ Integration sync endpoint is not configured yet.');
           break;
           
         default:
