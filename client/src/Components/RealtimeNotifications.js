@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 import './RealtimeNotifications.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';

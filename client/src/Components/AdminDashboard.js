@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import axios from 'axios';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 import './AdminDashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';

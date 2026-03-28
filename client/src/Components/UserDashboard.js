@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import ApplicationForm from './ApplicationForm';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 import LoadingSpinner from './common/LoadingSpinner';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';

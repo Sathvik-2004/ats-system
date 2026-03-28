@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 

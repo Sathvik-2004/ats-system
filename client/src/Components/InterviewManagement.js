@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 import { toast } from 'react-toastify';
 import './InterviewManagement.css';
 import LoadingSpinner from './common/LoadingSpinner';

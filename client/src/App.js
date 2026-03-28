@@ -11,7 +11,7 @@ import TestLoginHelper from './Components/TestLoginHelper';
 import { ToastContainer, toast } from 'react-toastify';
 import { ensureValidSession } from './utils/authSession';
 import { SESSION_EXPIRED_EVENT, setupApiInterceptors } from './utils/apiInterceptors';
-import { connectSocket, disconnectSocket } from './utils/socket.js';
+import { connectSocket, disconnectSocket } from './utils/socket';
 import LoadingSpinner from './Components/common/LoadingSpinner';
 import AppErrorBoundary from './Components/common/AppErrorBoundary';
 import {

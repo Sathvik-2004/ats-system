@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 import LoadingSpinner from './common/LoadingSpinner';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { connectSocket } from '../utils/socket.js';
+import { connectSocket } from '../utils/socket';
 import './NotificationsInbox.css';
 import RequestErrorState from './common/RequestErrorState';
 
