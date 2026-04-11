@@ -4,7 +4,7 @@
   "env": "node",
   "plan": "free",
   "buildCommand": "cd server && npm install --production",
-  "startCommand": "cd server && node server-render.js",
+  "startCommand": "cd server && npm run start:prod",
   "rootDir": ".",
   "envVars": [
     {
