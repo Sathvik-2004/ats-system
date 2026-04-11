@@ -3,7 +3,7 @@
   "type": "web",
   "env": "node",
   "plan": "free",
-  "buildCommand": "npm install --production",
+  "buildCommand": "npm ci --omit=dev",
   "startCommand": "npm run start:prod",
   "rootDir": ".",
   "envVars": [
