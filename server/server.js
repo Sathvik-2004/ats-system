@@ -182,7 +182,7 @@ app.get('/api/jobs', (req, res) => {
     });
 });
 
-app.post('/api/auth/user-register', async (req, res) => {
+app.post(['/api/auth/user-register', '/api/auth/register'], async (req, res) => {
   console.log('👤 User registration:', req.body);
   try {
     const { name, email, password } = req.body;
