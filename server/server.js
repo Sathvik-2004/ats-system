@@ -488,7 +488,7 @@ app.get('/api/reports/summary', async (req, res) => {
 });
 
 // Catch all API routes
-app.use('/api/*', (req, res) => {
+app.use('/api', (req, res) => {
   console.log(`❓ Unknown API route: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ 
     error: 'Endpoint not found (basic server mode)',

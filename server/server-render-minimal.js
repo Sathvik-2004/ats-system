@@ -76,8 +76,8 @@ app.get('/api/applicants', (req, res) => {
   });
 });
 
-// Catch all other routes
-app.use('*', (req, res) => {
+// Catch all other routes (Express 5 compatible wildcard)
+app.use('/{*path}', (req, res) => {
   console.log(`❓ Unknown route: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ 
     error: 'Route not found',
