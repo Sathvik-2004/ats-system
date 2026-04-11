@@ -4,6 +4,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:prod": "node setup-production-admin.js && node server.js",
     "dev": "nodemon server.js",
     "build": "npm install",
     "production": "NODE_ENV=production node server.js",

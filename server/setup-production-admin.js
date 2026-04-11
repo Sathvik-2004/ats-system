@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const PRODUCTION_MONGO_URI = process.env.MONGO_URI;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ksreddy@2004';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@ats.local';
 
 if (!PRODUCTION_MONGO_URI) {
   console.error('❌ Missing MONGO_URI in environment.');
@@ -23,7 +26,7 @@ const setupProductionAdminCredentials = async () => {
     console.log('✅ Connected to production MongoDB');
 
     // Hash the password using bcrypt
-    const hashedPassword = await bcrypt.hash('ksreddy@2004', 10);
+    const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
     // First, find and list existing admins
     const existingAdmins = await User.find({ role: 'admin' });
@@ -45,10 +48,10 @@ const setupProductionAdminCredentials = async () => {
 
     // Update or create admin user with proper hashed password
     const result = await User.findOneAndUpdate(
-      { name: 'admin', role: 'admin' },
+      { role: 'admin', $or: [{ name: ADMIN_USERNAME }, { email: ADMIN_EMAIL }] },
       { 
-        name: 'admin',
-        email: 'admin@ats.local',
+        name: ADMIN_USERNAME,
+        email: ADMIN_EMAIL,
         password: hashedPassword,
         role: 'admin',
         isActive: true
@@ -57,23 +60,23 @@ const setupProductionAdminCredentials = async () => {
     );
 
     console.log('\n✅ Admin credentials successfully updated:');
-    console.log('   Username: admin');
-    console.log('   Password: ksreddy@2004');
-    console.log('   Email: admin@ats.local');
+    console.log(`   Username: ${ADMIN_USERNAME}`);
+    console.log(`   Password: ${ADMIN_PASSWORD}`);
+    console.log(`   Email: ${ADMIN_EMAIL}`);
     console.log('   Status: Active');
 
     // Verify by testing password comparison
-    const testUser = await User.findOne({ name: 'admin', role: 'admin' });
+    const testUser = await User.findOne({ role: 'admin', $or: [{ name: ADMIN_USERNAME }, { email: ADMIN_EMAIL }] });
     if (testUser) {
-      const isValid = await testUser.comparePassword('ksreddy@2004');
+      const isValid = await testUser.comparePassword(ADMIN_PASSWORD);
       console.log(`   Password verification: ${isValid ? '✅ SUCCESS' : '❌ FAILED'}`);
     }
 
     await mongoose.disconnect();
     console.log('\n✅ Disconnected from MongoDB');
     console.log('\n🎉 You can now login with:');
-    console.log('   Username: admin');
-    console.log('   Password: ksreddy@2004');
+    console.log(`   Username: ${ADMIN_USERNAME}`);
+    console.log(`   Password: ${ADMIN_PASSWORD}`);
     console.log('   Visit: https://ats-system-flame.vercel.app/admin-login');
     process.exit(0);
   } catch (error) {
