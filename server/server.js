@@ -49,8 +49,8 @@ const Job = mongoose.model('Job', JobSchema);
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || `${JWT_SECRET}-refresh`;
 const refreshTokenBlocklist = new Set();
-const DEPLOY_ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
-const DEPLOY_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const DEPLOY_ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const DEPLOY_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ksreddy@2004';
 const DEPLOY_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@ats.local';
 
 const signAccessToken = (user) => {
