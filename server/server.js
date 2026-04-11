@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const app = express();
 
 console.log('🚀 ATS BACKEND STARTING ON RENDER.COM...');
@@ -45,17 +46,65 @@ const User = mongoose.model('User', UserSchema);
 const Application = mongoose.model('Application', ApplicationSchema);
 const Job = mongoose.model('Job', JobSchema);
 
+const JWT_SECRET = process.env.JWT_SECRET || 'change-this-in-production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || `${JWT_SECRET}-refresh`;
+const refreshTokenBlocklist = new Set();
+
+const signAccessToken = (user) => {
+  return jwt.sign(
+    {
+      id: String(user._id),
+      email: user.email,
+      role: user.role || 'user'
+    },
+    JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+  );
+};
+
+const signRefreshToken = (user) => {
+  return jwt.sign(
+    {
+      id: String(user._id),
+      tokenType: 'refresh',
+      jti: `jti-${Date.now()}-${String(user._id)}`
+    },
+    JWT_REFRESH_SECRET,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+  );
+};
+
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration for Render.com
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://ats-system-flame.vercel.app',
-    'https://*.onrender.com'
-  ],
+  origin(origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const explicitOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://ats-system-flame.vercel.app',
+      ...(process.env.CORS_ORIGIN || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    ];
+
+    const isAllowedByHost =
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.onrender.com');
+
+    if (explicitOrigins.includes(origin) || isAllowedByHost) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -187,11 +236,17 @@ app.post('/api/auth/user-login', async (req, res) => {
     }
 
     if (user && userPasswordMatched) {
+      const token = signAccessToken(user);
+      const refreshToken = signRefreshToken(user);
+
       res.json({ 
         success: true,
         message: 'User login successful',
-        token: 'user-token-' + user._id,
-        user: { email: user.email, name: user.name, id: user._id }
+        data: {
+          token,
+          refreshToken,
+          user: { email: user.email, name: user.name, id: user._id, role: user.role || 'user' }
+        }
       });
     } else {
       res.status(401).json({ 
@@ -240,11 +295,17 @@ app.post('/api/auth/admin-login', async (req, res) => {
     }
     
     if (admin && adminPasswordMatched) {
+      const token = signAccessToken(admin);
+      const refreshToken = signRefreshToken(admin);
+
       res.json({ 
         success: true,
         message: 'Admin login successful',
-        token: 'admin-token-' + admin._id,
-        admin: { username: admin.username || admin.name || admin.email, role: 'admin', id: admin._id }
+        data: {
+          token,
+          refreshToken,
+          admin: { username: admin.username || admin.name || admin.email, role: 'admin', id: admin._id }
+        }
       });
     } else {
       res.status(401).json({ 
@@ -259,6 +320,54 @@ app.post('/api/auth/admin-login', async (req, res) => {
       message: 'Admin login failed'
     });
   }
+});
+
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body || {};
+
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, message: 'Refresh token required' });
+    }
+
+    if (refreshTokenBlocklist.has(refreshToken)) {
+      return res.status(401).json({ success: false, message: 'Refresh token revoked' });
+    }
+
+    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+    if (decoded.tokenType !== 'refresh' || !decoded.id) {
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found for refresh token' });
+    }
+
+    const nextAccessToken = signAccessToken(user);
+    const nextRefreshToken = signRefreshToken(user);
+    refreshTokenBlocklist.add(refreshToken);
+
+    return res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: {
+        token: nextAccessToken,
+        refreshToken: nextRefreshToken
+      }
+    });
+  } catch (_error) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (refreshToken) {
+    refreshTokenBlocklist.add(refreshToken);
+  }
+
+  return res.json({ success: true, message: 'Logged out successfully' });
 });
 
 app.get('/api/auth/my-applications', async (req, res) => {

@@ -3,8 +3,13 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-// Production MongoDB URI with properly decoded password (! is %21 in URL encoding)
-const PRODUCTION_MONGO_URI = 'mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024!@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster';
+const PRODUCTION_MONGO_URI = process.env.MONGO_URI;
+
+if (!PRODUCTION_MONGO_URI) {
+  console.error('❌ Missing MONGO_URI in environment.');
+  console.error('   → Add MONGO_URI in your deployment provider environment variables.');
+  process.exit(1);
+}
 
 const User = require('./models/User');
 
