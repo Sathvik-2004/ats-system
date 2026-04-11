@@ -49,6 +49,9 @@ const Job = mongoose.model('Job', JobSchema);
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || `${JWT_SECRET}-refresh`;
 const refreshTokenBlocklist = new Set();
+const DEPLOY_ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
+const DEPLOY_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const DEPLOY_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@ats.local';
 
 const signAccessToken = (user) => {
   return jwt.sign(
@@ -267,6 +270,28 @@ app.post('/api/auth/admin-login', async (req, res) => {
   console.log('👨‍💼 Admin login attempt:', req.body);
   const { username, password } = req.body;
   try {
+    const isEnvAdminEnabled = Boolean(DEPLOY_ADMIN_USERNAME && DEPLOY_ADMIN_PASSWORD);
+    if (isEnvAdminEnabled && username === DEPLOY_ADMIN_USERNAME && password === DEPLOY_ADMIN_PASSWORD) {
+      const envAdminUser = {
+        _id: 'env-admin',
+        email: DEPLOY_ADMIN_EMAIL,
+        role: 'admin',
+        username: DEPLOY_ADMIN_USERNAME,
+        name: DEPLOY_ADMIN_USERNAME
+      };
+      const token = signAccessToken(envAdminUser);
+      const refreshToken = signRefreshToken(envAdminUser);
+
+      return res.json({
+        success: true,
+        message: 'Admin login successful',
+        data: {
+          token,
+          refreshToken,
+          admin: { username: DEPLOY_ADMIN_USERNAME, role: 'admin', id: 'env-admin' }
+        }
+      });
+    }
 
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ success: false, message: 'Database unavailable' });
@@ -337,6 +362,26 @@ app.post('/api/auth/refresh', async (req, res) => {
     const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     if (decoded.tokenType !== 'refresh' || !decoded.id) {
       return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+
+    if (decoded.id === 'env-admin' && DEPLOY_ADMIN_USERNAME && DEPLOY_ADMIN_PASSWORD) {
+      const envAdminUser = {
+        _id: 'env-admin',
+        email: DEPLOY_ADMIN_EMAIL,
+        role: 'admin'
+      };
+      const nextAccessToken = signAccessToken(envAdminUser);
+      const nextRefreshToken = signRefreshToken(envAdminUser);
+      refreshTokenBlocklist.add(refreshToken);
+
+      return res.json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          token: nextAccessToken,
+          refreshToken: nextRefreshToken
+        }
+      });
     }
 
     const user = await User.findById(decoded.id);
