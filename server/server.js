@@ -8,18 +8,75 @@ const app = express();
 
 console.log('🚀 ATS BACKEND STARTING ON RENDER.COM...');
 
-// MongoDB Connection - Fix URL encoding
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sathwikreddy9228_db_user:AtsSystem2024%21@ats-production-cluster.gl3adlt.mongodb.net/ats_production?retryWrites=true&w=majority&appName=ats-production-cluster';
+// MongoDB Connection with proper error handling
+const MONGO_URI = process.env.MONGO_URI;
 
-// Try connecting to MongoDB with fallback
-mongoose.connect(MONGO_URI)
+// Validate MONGO_URI exists
+if (!MONGO_URI) {
+  console.error('❌ CRITICAL: MONGO_URI environment variable is not set');
+  console.error('   → Add MONGO_URI to Render environment variables');
+  console.error('   → Format: mongodb+srv://username:password@cluster/database?retryWrites=true&w=majority');
+  process.exit(1);
+}
+
+// Validate MONGO_URI format
+if (!MONGO_URI.startsWith('mongodb+srv://') && !MONGO_URI.startsWith('mongodb://')) {
+  console.error('❌ CRITICAL: MONGO_URI has invalid format');
+  console.error('   → Must start with mongodb+srv:// or mongodb://');
+  process.exit(1);
+}
+
+// Connect to MongoDB with proper configuration
+const mongooseOptions = {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  retryWrites: true,
+  w: 'majority'
+};
+
+mongoose.connect(MONGO_URI, mongooseOptions)
   .then(() => {
-    console.log('✅ Connected to MongoDB Atlas');
+    console.log('✅ Connected to MongoDB Atlas successfully');
+    console.log(`   Database: ${mongoose.connection.name}`);
   })
   .catch(err => {
-    console.error('❌ MongoDB connection error:', err);
-    console.log('⚠️ Running in fallback mode without database');
+    console.error('❌ MongoDB connection failed');
+    console.error(`   Error: ${err.message}`);
+    
+    // Parse authentication errors
+    if (err.message.includes('authentication failed') || err.message.includes('bad auth')) {
+      console.error('   → This is an authentication error (bad username/password)');
+      console.error('   → Check MONGO_URI credentials in Render environment variables');
+      console.error('   → Verify the MongoDB Atlas user has correct role assignments');
+    } else if (err.message.includes('connection failed') || err.message.includes('ECONNREFUSED')) {
+      console.error('   → Connection refused (network or IP whitelist issue)');
+      console.error('   → In MongoDB Atlas, add 0.0.0.0/0 to Network Access (Render uses dynamic IPs)');
+    } else if (err.message.includes('unknown host') || err.message.includes('getaddrinfo')) {
+      console.error('   → DNS resolution failed (cluster domain not found)');
+      console.error('   → Verify cluster URL in MONGO_URI');
+    } else if (err.message.includes('Timeout')) {
+      console.error('   → Connection timeout (network unreachable or firewall blocked)');
+      console.error('   → Verify 0.0.0.0/0 is added to MongoDB Atlas Network Access');
+    }
+    
+    console.error('\n   Complete connection URI format example:');
+    console.error('   mongodb+srv://username:password@cluster-name.xxxxx.mongodb.net/database_name?retryWrites=true&w=majority');
+    
+    process.exit(1);
   });
+
+// Monitor connection state changes
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️  MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnecting', () => {
+  console.log('🔄 MongoDB reconnecting...');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB reconnected');
+});
 
 // Simple User schema
 const UserSchema = new mongoose.Schema({
