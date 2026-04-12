@@ -1038,6 +1038,12 @@ app.get('/api/applications', requireAdminOrRecruiter, async (req, res) => {
     return res.json({
       success: true,
       data: applications,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.max(1, Math.ceil(totalItems / limit))
+      },
       meta: {
         pagination: {
           page,
