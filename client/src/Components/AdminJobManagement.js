@@ -82,7 +82,11 @@ const AdminJobManagement = () => {
         timeout: 3000 // Quick timeout for faster fallback
       });
 
-      const jobsData = Array.isArray(response.data) ? response.data : [];
+      const jobsData = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.data)
+          ? response.data.data
+          : [];
       
       // Cache the fresh data
       jobCache.data = jobsData;

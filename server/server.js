@@ -143,10 +143,35 @@ const ApplicationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const AuditLogSchema = new mongoose.Schema({
+  timestamp: { type: Date, default: Date.now },
+  userId: String,
+  userName: String,
+  action: String,
+  resourceType: String,
+  resourceName: String,
+  details: { type: mongoose.Schema.Types.Mixed, default: {} }
+}, { collection: 'audit_logs' });
+
+const EmailTemplateSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { type: String, required: true, default: 'custom' },
+  subject: { type: String, required: true },
+  content: { type: String, required: true },
+  variables: { type: [String], default: [] },
+  isActive: { type: Boolean, default: true },
+  createdBy: String,
+  updatedBy: String,
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: Date
+}, { collection: 'email_templates' });
+
 const JobSchema = new mongoose.Schema({}, { strict: false, collection: 'jobs' });
 
 const User = mongoose.model('User', UserSchema);
 const Application = mongoose.model('Application', ApplicationSchema);
+const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
+const EmailTemplate = mongoose.model('EmailTemplate', EmailTemplateSchema);
 const Job = mongoose.model('Job', JobSchema);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-in-production';
@@ -184,6 +209,24 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
+
+async function createAuditLog(entry) {
+  try {
+    const payload = {
+      timestamp: new Date(),
+      userId: String(entry?.userId || ''),
+      userName: String(entry?.userName || 'system'),
+      action: String(entry?.action || 'unknown'),
+      resourceType: String(entry?.resourceType || 'system'),
+      resourceName: entry?.resourceName ? String(entry.resourceName) : '',
+      details: entry?.details && typeof entry.details === 'object' ? entry.details : {}
+    };
+
+    await AuditLog.create(payload);
+  } catch (error) {
+    console.error('Audit log write failed:', error.message);
+  }
+}
 
 // Basic middleware
 app.use(express.json());
@@ -469,6 +512,120 @@ app.get('/api/jobs', async (req, res) => {
   }
 });
 
+app.post('/api/jobs', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.title || !payload.company || !payload.location || !payload.description) {
+      return res.status(400).json({ success: false, message: 'title, company, location and description are required' });
+    }
+
+    const jobDoc = await Job.create({
+      title: String(payload.title || '').trim(),
+      company: String(payload.company || '').trim(),
+      salary: payload.salary || '',
+      location: String(payload.location || '').trim(),
+      experience: payload.experience || '',
+      jobType: payload.jobType || payload.type || 'Full-time',
+      type: payload.jobType || payload.type || 'Full-time',
+      description: String(payload.description || '').trim(),
+      requirements: String(payload.skills || '')
+        .split(',')
+        .map((skill) => skill.trim())
+        .filter(Boolean),
+      skills: String(payload.skills || '')
+        .split(',')
+        .map((skill) => skill.trim())
+        .filter(Boolean),
+      isActive: payload.isActive !== false,
+      postedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'job_created',
+      resourceType: 'job',
+      resourceName: jobDoc.title,
+      details: { jobId: String(jobDoc._id) }
+    });
+
+    return res.status(201).json({ success: true, data: jobDoc, message: 'Job created successfully' });
+  } catch (error) {
+    console.error('Error creating job:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create job' });
+  }
+});
+
+app.put('/api/jobs/:id', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const updateDoc = {
+      title: payload.title,
+      company: payload.company,
+      salary: payload.salary,
+      location: payload.location,
+      experience: payload.experience,
+      jobType: payload.jobType || payload.type,
+      type: payload.jobType || payload.type,
+      description: payload.description,
+      requirements: Array.isArray(payload.requirements)
+        ? payload.requirements
+        : String(payload.skills || '')
+            .split(',')
+            .map((skill) => skill.trim())
+            .filter(Boolean),
+      isActive: typeof payload.isActive === 'boolean' ? payload.isActive : undefined,
+      updatedAt: new Date()
+    };
+
+    Object.keys(updateDoc).forEach((key) => updateDoc[key] === undefined && delete updateDoc[key]);
+    const updated = await Job.findByIdAndUpdate(req.params.id, { $set: updateDoc }, { new: true }).lean();
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Job not found' });
+    }
+
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'job_updated',
+      resourceType: 'job',
+      resourceName: updated.title,
+      details: { jobId: String(updated._id) }
+    });
+
+    return res.json({ success: true, data: updated, message: 'Job updated successfully' });
+  } catch (error) {
+    console.error('Error updating job:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update job' });
+  }
+});
+
+app.delete('/api/jobs/:id', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const deleted = await Job.findByIdAndDelete(req.params.id).lean();
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Job not found' });
+    }
+
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'job_deleted',
+      resourceType: 'job',
+      resourceName: deleted.title,
+      details: { jobId: String(deleted._id) }
+    });
+
+    return res.json({ success: true, message: 'Job deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting job:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete job' });
+  }
+});
+
 app.post(['/api/auth/user-register', '/api/auth/register'], async (req, res) => {
   console.log('👤 User registration:', req.body);
   try {
@@ -569,6 +726,15 @@ app.post('/api/auth/admin-login', async (req, res) => {
       const token = signAccessToken(envAdminUser);
       const refreshToken = signRefreshToken(envAdminUser);
 
+      await createAuditLog({
+        userId: 'env-admin',
+        userName: DEPLOY_ADMIN_USERNAME,
+        action: 'admin_login',
+        resourceType: 'auth',
+        resourceName: 'admin-login',
+        details: { mode: 'env-admin' }
+      });
+
       return res.json({
         success: true,
         message: 'Admin login successful',
@@ -609,6 +775,15 @@ app.post('/api/auth/admin-login', async (req, res) => {
     if (admin && adminPasswordMatched) {
       const token = signAccessToken(admin);
       const refreshToken = signRefreshToken(admin);
+
+      await createAuditLog({
+        userId: String(admin._id),
+        userName: admin.username || admin.name || admin.email || 'admin',
+        action: 'admin_login',
+        resourceType: 'auth',
+        resourceName: 'admin-login',
+        details: { mode: 'database-admin' }
+      });
 
       res.json({ 
         success: true,
@@ -1008,8 +1183,138 @@ app.post('/api/settings/reset', requireAdminOrRecruiter, (req, res) => {
   return res.json({ success: true, settings: runtimeSettings, message: 'Settings reset to defaults' });
 });
 
-app.get('/api/audit-logs', requireAdminOrRecruiter, (req, res) => {
-  return res.json({ success: true, data: [] });
+app.get('/api/audit-logs', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+    const skip = (page - 1) * limit;
+    const user = String(req.query.user || '').trim();
+    const from = req.query.from ? new Date(req.query.from) : null;
+    const to = req.query.to ? new Date(req.query.to) : null;
+
+    const filter = {};
+    if (user) {
+      filter.$or = [
+        { userName: { $regex: user, $options: 'i' } },
+        { action: { $regex: user, $options: 'i' } }
+      ];
+    }
+    if (from || to) {
+      filter.timestamp = {};
+      if (from && !Number.isNaN(from.getTime())) {
+        filter.timestamp.$gte = from;
+      }
+      if (to && !Number.isNaN(to.getTime())) {
+        const inclusiveTo = new Date(to);
+        inclusiveTo.setHours(23, 59, 59, 999);
+        filter.timestamp.$lte = inclusiveTo;
+      }
+      if (!Object.keys(filter.timestamp).length) {
+        delete filter.timestamp;
+      }
+    }
+
+    const [data, totalItems] = await Promise.all([
+      AuditLog.find(filter).sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
+      AuditLog.countDocuments(filter)
+    ]);
+
+    return res.json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.max(1, Math.ceil(totalItems / limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error loading audit logs:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load audit logs' });
+  }
+});
+
+app.get('/api/email-templates', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const templates = await EmailTemplate.find().sort({ updatedAt: -1, createdAt: -1 }).lean();
+    return res.json({ success: true, data: templates });
+  } catch (error) {
+    console.error('Error fetching email templates:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch templates' });
+  }
+});
+
+app.post('/api/email-templates', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.name || !payload.subject || !payload.content) {
+      return res.status(400).json({ success: false, message: 'name, subject and content are required' });
+    }
+
+    const created = await EmailTemplate.create({
+      name: String(payload.name || '').trim(),
+      type: String(payload.type || 'custom').trim(),
+      subject: String(payload.subject || '').trim(),
+      content: String(payload.content || '').trim(),
+      variables: Array.isArray(payload.variables) ? payload.variables : [],
+      isActive: payload.isActive !== false,
+      createdBy: String(req.auth?.id || ''),
+      updatedBy: String(req.auth?.id || ''),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'email_template_created',
+      resourceType: 'email_template',
+      resourceName: created.name,
+      details: { templateId: String(created._id), type: created.type }
+    });
+
+    return res.status(201).json({ success: true, data: created, message: 'Template created' });
+  } catch (error) {
+    console.error('Error creating email template:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create template' });
+  }
+});
+
+app.put('/api/email-templates/:id', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const updateDoc = {
+      name: payload.name,
+      type: payload.type,
+      subject: payload.subject,
+      content: payload.content,
+      variables: Array.isArray(payload.variables) ? payload.variables : undefined,
+      isActive: typeof payload.isActive === 'boolean' ? payload.isActive : undefined,
+      updatedBy: String(req.auth?.id || ''),
+      updatedAt: new Date()
+    };
+    Object.keys(updateDoc).forEach((key) => updateDoc[key] === undefined && delete updateDoc[key]);
+
+    const updated = await EmailTemplate.findByIdAndUpdate(req.params.id, { $set: updateDoc }, { new: true }).lean();
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Template not found' });
+    }
+
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'email_template_updated',
+      resourceType: 'email_template',
+      resourceName: updated.name,
+      details: { templateId: String(updated._id), type: updated.type }
+    });
+
+    return res.json({ success: true, data: updated, message: 'Template updated' });
+  } catch (error) {
+    console.error('Error updating email template:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update template' });
+  }
 });
 
 app.get('/api/notifications', requireAuth, (req, res) => {
@@ -1108,6 +1413,20 @@ app.put('/api/applications/:id/status', requireAdminOrRecruiter, async (req, res
       { new: true }
     ).lean();
 
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'application_status_updated',
+      resourceType: 'application',
+      resourceName: updated?.candidateName || updated?.email || String(updated?._id || ''),
+      details: {
+        applicationId: String(updated?._id || req.params.id),
+        from: historyEntry.from,
+        to: nextStatus,
+        notes
+      }
+    });
+
     return res.json({ success: true, data: updated, message: 'Application status updated successfully' });
   } catch (error) {
     console.error('Error updating application status:', error);
@@ -1144,6 +1463,19 @@ app.post('/api/applications/bulk/update-status', requireAdminOrRecruiter, async 
         }
       }
     );
+
+    await createAuditLog({
+      userId: req.auth?.id,
+      userName: req.auth?.email || req.auth?.id || 'admin',
+      action: 'application_status_bulk_updated',
+      resourceType: 'application',
+      resourceName: 'bulk-update',
+      details: {
+        targetStatus: nextStatus,
+        requestedCount: applicationIds.length,
+        modifiedCount: result.modifiedCount || 0
+      }
+    });
 
     return res.json({
       success: true,
