@@ -245,18 +245,77 @@ app.post('/api/applicants/test-submit', (req, res) => {
 });
 
 // Add missing endpoints that frontend expects
-app.get('/api/jobs', (req, res) => {
+app.get('/api/jobs', async (req, res) => {
   console.log('📋 Jobs requested');
-  Job.find({ isActive: { $ne: false } })
-    .sort({ createdAt: -1 })
-    .then((jobs) => {
-      console.log(`✅ Returning ${jobs.length} jobs from MongoDB`);
-      res.json(jobs);
-    })
-    .catch((error) => {
-      console.error('Error fetching jobs:', error);
-      res.status(500).json({ success: false, message: 'Failed to fetch jobs' });
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const skip = (page - 1) * limit;
+    const isPaginated = String(req.query.paginated || 'false').toLowerCase() === 'true';
+
+    const search = String(req.query.search || '').trim();
+    const location = String(req.query.location || '').trim();
+    const experience = String(req.query.experience || '').trim();
+    const jobType = String(req.query.jobType || '').trim();
+    const salaryMin = Number(req.query.salaryMin);
+    const sortBy = String(req.query.sortBy || 'latest').toLowerCase();
+
+    const filter = {
+      isActive: { $ne: false }
+    };
+
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { company: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (location) {
+      filter.location = { $regex: location, $options: 'i' };
+    }
+    if (experience) {
+      filter.experience = { $regex: experience, $options: 'i' };
+    }
+    if (jobType) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { jobType: { $regex: `^${jobType}$`, $options: 'i' } },
+          { type: { $regex: `^${jobType}$`, $options: 'i' } }
+        ]
+      });
+    }
+    if (!Number.isNaN(salaryMin) && salaryMin > 0) {
+      filter.salary = { $gte: salaryMin };
+    }
+
+    const sort = sortBy === 'oldest' ? { postedAt: 1, createdAt: 1 } : { postedAt: -1, createdAt: -1 };
+
+    const [jobs, totalItems] = await Promise.all([
+      Job.find(filter)
+        .sort(sort)
+        .skip(isPaginated ? skip : 0)
+        .limit(isPaginated ? limit : 100)
+        .lean(),
+      Job.countDocuments(filter)
+    ]);
+
+    console.log(`✅ Returning ${jobs.length} jobs from MongoDB`);
+    return res.json({
+      success: true,
+      data: jobs,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.max(1, Math.ceil(totalItems / limit))
+      }
     });
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch jobs' });
+  }
 });
 
 app.post(['/api/auth/user-register', '/api/auth/register'], async (req, res) => {
