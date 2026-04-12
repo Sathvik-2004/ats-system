@@ -83,7 +83,27 @@ const UserSchema = new mongoose.Schema({
   name: String,
   email: String,
   password: String,
-  role: { type: String, default: 'user' }
+  role: { type: String, default: 'user' },
+  isActive: { type: Boolean, default: true },
+  phone: String,
+  location: String,
+  skills: { type: [String], default: [] },
+  experience: String,
+  education: String,
+  summary: String,
+  linkedIn: String,
+  github: String,
+  portfolio: String,
+  preferredJobType: String,
+  expectedSalary: String,
+  availability: String,
+  resume: {
+    filename: String,
+    url: String,
+    uploadedAt: Date
+  },
+  updatedAt: Date,
+  lastLoginAt: Date
 });
 
 // Simple Application schema
@@ -944,29 +964,268 @@ app.put('/api/ai/screen/:id', requireAdminOrRecruiter, async (req, res) => {
   }
 });
 
+const buildCandidateApplicationQuery = (userDoc) => {
+  const clauses = [];
+
+  if (userDoc?._id) {
+    clauses.push({ userId: String(userDoc._id) });
+    clauses.push({ userId: userDoc._id });
+    clauses.push({ candidateId: String(userDoc._id) });
+    clauses.push({ candidateId: userDoc._id });
+    clauses.push({ createdBy: String(userDoc._id) });
+    clauses.push({ createdBy: userDoc._id });
+  }
+
+  if (userDoc?.email) {
+    const normalizedEmail = String(userDoc.email).toLowerCase();
+    clauses.push({ email: normalizedEmail });
+    clauses.push({ candidateEmail: normalizedEmail });
+    clauses.push({ userEmail: normalizedEmail });
+    clauses.push({ applicantEmail: normalizedEmail });
+  }
+
+  if (!clauses.length) {
+    return { _id: null };
+  }
+
+  return { $or: clauses };
+};
+
+app.get('/api/users/me', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.auth.id).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, data: user });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load profile' });
+  }
+});
+
+app.put('/api/users/me', requireAuth, async (req, res) => {
+  try {
+    const updates = {
+      name: req.body?.name,
+      phone: req.body?.phone,
+      location: req.body?.location,
+      skills: Array.isArray(req.body?.skills) ? req.body.skills : undefined,
+      experience: req.body?.experience,
+      education: req.body?.education,
+      summary: req.body?.summary,
+      linkedIn: req.body?.linkedIn,
+      github: req.body?.github,
+      portfolio: req.body?.portfolio,
+      preferredJobType: req.body?.preferredJobType,
+      expectedSalary: req.body?.expectedSalary,
+      availability: req.body?.availability,
+      updatedAt: new Date()
+    };
+
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] === undefined) {
+        delete updates[key];
+      }
+    });
+
+    const user = await User.findByIdAndUpdate(req.auth.id, updates, { new: true }).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, data: user, message: 'Profile updated' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update profile' });
+  }
+});
+
+app.put('/api/users/me/resume', requireAuth, async (req, res) => {
+  try {
+    const { filename, url } = req.body || {};
+    if (!filename || !url) {
+      return res.status(400).json({ success: false, message: 'filename and url are required' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.auth.id,
+      {
+        resume: {
+          filename,
+          url,
+          uploadedAt: new Date()
+        },
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).select('-password').lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, data: user, message: 'Resume updated' });
+  } catch (error) {
+    console.error('Error updating resume:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update resume' });
+  }
+});
+
+app.post('/api/users/me/resume/parse', requireAuth, async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').toLowerCase();
+    if (!text.trim()) {
+      return res.status(400).json({ success: false, message: 'text is required' });
+    }
+
+    const knownSkills = [
+      'javascript', 'typescript', 'react', 'node', 'node.js', 'express', 'mongodb', 'sql', 'python', 'java', 'aws',
+      'docker', 'kubernetes', 'html', 'css', 'redux', 'graphql'
+    ];
+    const extractedSkills = knownSkills.filter((skill) => text.includes(skill));
+
+    if (extractedSkills.length) {
+      await User.findByIdAndUpdate(
+        req.auth.id,
+        { $addToSet: { skills: { $each: extractedSkills } }, updatedAt: new Date() }
+      );
+    }
+
+    return res.json({ success: true, data: { extractedSkills } });
+  } catch (error) {
+    console.error('Error parsing resume:', error);
+    return res.status(500).json({ success: false, message: 'Failed to parse resume' });
+  }
+});
+
+app.get('/api/applications/mine', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.auth.id).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const includeWithdrawn = String(req.query?.includeWithdrawn || 'false').toLowerCase() === 'true';
+    const query = buildCandidateApplicationQuery(user);
+    if (!includeWithdrawn) {
+      query.status = { $ne: 'withdrawn' };
+    }
+
+    const applications = await Application.find(query).sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, applications });
+  } catch (error) {
+    console.error('Error fetching my applications:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch your applications' });
+  }
+});
+
+app.get('/api/applications/mine/stats', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.auth.id).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const query = buildCandidateApplicationQuery(user);
+    const applications = await Application.find(query).lean();
+
+    const stats = {
+      total: applications.length,
+      pending: applications.filter((item) => ['pending', 'applied'].includes(String(item.status || '').toLowerCase())).length,
+      underReview: applications.filter((item) => ['reviewing', 'shortlisted', 'under_review', 'screening'].includes(String(item.status || '').toLowerCase())).length,
+      approved: applications.filter((item) => ['approved', 'selected', 'offer'].includes(String(item.status || '').toLowerCase())).length,
+      rejected: applications.filter((item) => ['rejected', 'withdrawn'].includes(String(item.status || '').toLowerCase())).length
+    };
+
+    return res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error fetching my application stats:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch application statistics' });
+  }
+});
+
+app.post('/api/applications/:id/withdraw', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.auth.id).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const ownershipQuery = buildCandidateApplicationQuery(user);
+    const updated = await Application.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        $or: ownershipQuery.$or || []
+      },
+      {
+        $set: {
+          status: 'withdrawn',
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    return res.json({ success: true, application: updated, message: 'Application withdrawn' });
+  } catch (error) {
+    console.error('Error withdrawing application:', error);
+    return res.status(500).json({ success: false, message: 'Failed to withdraw application' });
+  }
+});
+
 app.get('/api/auth/my-applications', async (req, res) => {
   console.log('📋 My applications requested');
   try {
-    const applications = await Application.find().sort({ createdAt: -1 });
-    res.json(applications);
+    const authCheck = verifyAccessToken(req);
+    if (!authCheck.ok) {
+      return res.status(401).json({ success: false, message: authCheck.reason });
+    }
+
+    const user = await User.findById(authCheck.decoded.id).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const applications = await Application.find(buildCandidateApplicationQuery(user)).sort({ createdAt: -1 });
+    res.json({ success: true, applications });
   } catch (error) {
     console.error('Error fetching applications:', error);
-    res.json([]);
+    res.status(500).json({ success: false, message: 'Failed to fetch applications', applications: [] });
   }
 });
 
 app.get('/api/auth/application-stats', async (req, res) => {
   console.log('📊 Application stats requested');
   try {
-    const total = await Application.countDocuments();
-    const pending = await Application.countDocuments({ status: 'pending' });
-    const approved = await Application.countDocuments({ status: 'approved' });
-    const rejected = await Application.countDocuments({ status: 'rejected' });
-    
-    res.json({ total, pending, approved, rejected });
+    const authCheck = verifyAccessToken(req);
+    if (!authCheck.ok) {
+      return res.status(401).json({ success: false, message: authCheck.reason });
+    }
+
+    const user = await User.findById(authCheck.decoded.id).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const applications = await Application.find(buildCandidateApplicationQuery(user)).lean();
+    const stats = {
+      total: applications.length,
+      pending: applications.filter((item) => ['pending', 'applied'].includes(String(item.status || '').toLowerCase())).length,
+      approved: applications.filter((item) => ['approved', 'selected', 'offer'].includes(String(item.status || '').toLowerCase())).length,
+      rejected: applications.filter((item) => ['rejected', 'withdrawn'].includes(String(item.status || '').toLowerCase())).length,
+      underReview: applications.filter((item) => ['reviewing', 'shortlisted', 'under_review', 'screening'].includes(String(item.status || '').toLowerCase())).length
+    };
+
+    res.json({ success: true, stats });
   } catch (error) {
     console.error('Error fetching stats:', error);
-    res.json({ total: 0, pending: 0, approved: 0, rejected: 0 });
+    res.status(500).json({ success: false, message: 'Failed to fetch stats', stats: { total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 } });
   }
 });
 
