@@ -1059,6 +1059,106 @@ app.get('/api/applications', requireAdminOrRecruiter, async (req, res) => {
   }
 });
 
+app.put('/api/applications/:id/status', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+    const notes = String(req.body?.notes || '').trim();
+    const allowedStatuses = new Set([
+      'pending',
+      'applied',
+      'reviewing',
+      'shortlisted',
+      'interview_scheduled',
+      'selected',
+      'approved',
+      'rejected',
+      'withdrawn'
+    ]);
+
+    if (!nextStatus || !allowedStatuses.has(nextStatus)) {
+      return res.status(400).json({ success: false, message: 'Invalid application status' });
+    }
+
+    const current = await Application.findById(req.params.id).lean();
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    const historyEntry = {
+      from: String(current.status || 'pending'),
+      to: nextStatus,
+      notes,
+      updatedBy: String(req.auth?.id || ''),
+      updatedByRole: String(req.auth?.role || ''),
+      updatedAt: new Date(),
+      source: 'manual'
+    };
+
+    const updated = await Application.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          status: nextStatus,
+          updatedAt: new Date()
+        },
+        $push: {
+          statusHistory: historyEntry
+        }
+      },
+      { new: true }
+    ).lean();
+
+    return res.json({ success: true, data: updated, message: 'Application status updated successfully' });
+  } catch (error) {
+    console.error('Error updating application status:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update status' });
+  }
+});
+
+app.post('/api/applications/bulk/update-status', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const applicationIds = Array.isArray(req.body?.applicationIds) ? req.body.applicationIds : [];
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+
+    if (!applicationIds.length) {
+      return res.status(400).json({ success: false, message: 'applicationIds are required' });
+    }
+
+    if (!nextStatus) {
+      return res.status(400).json({ success: false, message: 'status is required' });
+    }
+
+    const result = await Application.updateMany(
+      { _id: { $in: applicationIds } },
+      {
+        $set: { status: nextStatus, updatedAt: new Date() },
+        $push: {
+          statusHistory: {
+            from: 'bulk',
+            to: nextStatus,
+            updatedBy: String(req.auth?.id || ''),
+            updatedByRole: String(req.auth?.role || ''),
+            updatedAt: new Date(),
+            source: 'bulk'
+          }
+        }
+      }
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        matched: result.matchedCount || 0,
+        modified: result.modifiedCount || 0
+      },
+      message: 'Bulk status update completed'
+    });
+  } catch (error) {
+    console.error('Error in bulk status update:', error);
+    return res.status(500).json({ success: false, message: 'Failed to bulk update status' });
+  }
+});
+
 app.get('/api/interviews/upcoming', requireAdminOrRecruiter, async (req, res) => {
   try {
     const interviews = await Application.find({
@@ -1142,19 +1242,51 @@ app.post('/api/ai/screen', requireAdminOrRecruiter, async (req, res) => {
     const query = jobId ? { jobId } : {};
     const applications = await Application.find(query).sort({ createdAt: -1 }).limit(100).lean();
 
-    const scored = applications.map((item) => {
+    const now = new Date();
+    const updates = applications.map((item) => {
       const base = Number(item.aiScore || item.score || 0);
-      const aiScore = Math.max(0, Math.min(100, base || 50));
+      const aiScore = Math.max(0, Math.min(100, base || 70));
+      const currentStatus = String(item.status || '').toLowerCase();
+      const nextStatus = ['pending', 'applied'].includes(currentStatus) ? 'reviewing' : (currentStatus || 'reviewing');
+
       return {
-        ...item,
-        aiScore,
-        score: aiScore,
-        matchPercentage: aiScore,
-        missingSkills: Array.isArray(item.missingSkills) ? item.missingSkills : []
+        id: item._id,
+        update: {
+          aiScore,
+          score: aiScore,
+          matchPercentage: aiScore,
+          missingSkills: Array.isArray(item.missingSkills) ? item.missingSkills : [],
+          status: nextStatus,
+          updatedAt: now
+        }
       };
     });
 
-    return res.json({ success: true, data: scored, message: 'AI screening completed' });
+    if (updates.length) {
+      await Application.bulkWrite(
+        updates.map((entry) => ({
+          updateOne: {
+            filter: { _id: entry.id },
+            update: {
+              $set: entry.update,
+              $push: {
+                statusHistory: {
+                  from: 'ai_screening',
+                  to: entry.update.status,
+                  updatedBy: String(req.auth?.id || ''),
+                  updatedByRole: String(req.auth?.role || ''),
+                  updatedAt: now,
+                  source: 'ai'
+                }
+              }
+            }
+          }
+        }))
+      );
+    }
+
+    const refreshed = await Application.find(query).sort({ createdAt: -1 }).limit(100).lean();
+    return res.json({ success: true, data: refreshed, message: 'AI screening completed' });
   } catch (error) {
     console.error('Error running AI screening:', error);
     return res.status(500).json({ success: false, message: 'AI screening failed' });
@@ -1163,17 +1295,43 @@ app.post('/api/ai/screen', requireAdminOrRecruiter, async (req, res) => {
 
 app.put('/api/ai/screen/:id', requireAdminOrRecruiter, async (req, res) => {
   try {
-    const updated = await Application.findByIdAndUpdate(
-      req.params.id,
-      { $set: { aiScore: 70, score: 70, updatedAt: new Date() } },
-      { new: true }
-    ).lean();
-
-    if (!updated) {
+    const current = await Application.findById(req.params.id).lean();
+    if (!current) {
       return res.status(404).json({ success: false, message: 'Application not found' });
     }
 
-    return res.json({ success: true, data: updated, message: 'Application screened' });
+    const currentStatus = String(current.status || '').toLowerCase();
+    const nextStatus = ['pending', 'applied'].includes(currentStatus) ? 'reviewing' : (currentStatus || 'reviewing');
+    const aiScore = 70;
+
+    const updated = await Application.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { aiScore, score: aiScore, status: nextStatus, updatedAt: new Date() },
+        $push: {
+          statusHistory: {
+            from: currentStatus || 'unknown',
+            to: nextStatus,
+            updatedBy: String(req.auth?.id || ''),
+            updatedByRole: String(req.auth?.role || ''),
+            updatedAt: new Date(),
+            source: 'ai'
+          }
+        }
+      },
+      { new: true }
+    ).lean();
+
+    return res.json({
+      success: true,
+      data: {
+        application: updated,
+        matchScore: aiScore,
+        matchedSkills: Array.isArray(updated?.matchingSkills) ? updated.matchingSkills : [],
+        missingSkills: Array.isArray(updated?.missingSkills) ? updated.missingSkills : []
+      },
+      message: 'Application screened'
+    });
   } catch (error) {
     console.error('Error screening application:', error);
     return res.status(500).json({ success: false, message: 'AI screening failed' });
