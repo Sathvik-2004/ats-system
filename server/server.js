@@ -758,7 +758,7 @@ const defaultSystemSettings = {
 
 let runtimeSettings = { ...defaultSystemSettings };
 
-const verifyAccessToken = (req) => {
+function verifyAccessToken(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) {
@@ -771,9 +771,9 @@ const verifyAccessToken = (req) => {
   } catch (_error) {
     return { ok: false, reason: 'Invalid or expired token' };
   }
-};
+}
 
-const requireAuth = (req, res, next) => {
+function requireAuth(req, res, next) {
   const authCheck = verifyAccessToken(req);
   if (!authCheck.ok) {
     return res.status(401).json({ success: false, message: authCheck.reason });
@@ -781,9 +781,9 @@ const requireAuth = (req, res, next) => {
 
   req.auth = authCheck.decoded;
   return next();
-};
+}
 
-const requireAdminOrRecruiter = (req, res, next) => {
+function requireAdminOrRecruiter(req, res, next) {
   const authCheck = verifyAccessToken(req);
   if (!authCheck.ok) {
     return res.status(401).json({ success: false, message: authCheck.reason });
@@ -796,7 +796,7 @@ const requireAdminOrRecruiter = (req, res, next) => {
 
   req.auth = authCheck.decoded;
   return next();
-};
+}
 
 app.get('/api/users', requireAdminOrRecruiter, async (req, res) => {
   try {
