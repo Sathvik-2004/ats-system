@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
 const app = express();
 
 console.log('🚀 ATS BACKEND STARTING ON RENDER.COM...');
@@ -109,11 +110,36 @@ const UserSchema = new mongoose.Schema({
 // Simple Application schema
 const ApplicationSchema = new mongoose.Schema({
   name: String,
+  candidateName: String,
   email: String,
+  candidateEmail: String,
   phone: String,
+  userId: String,
+  jobId: String,
+  jobTitle: String,
+  resumeFilename: String,
+  resumeUrl: String,
   position: String,
   experience: String,
   status: { type: String, default: 'pending' },
+  appliedDate: Date,
+  interviewScheduled: {
+    date: Date,
+    time: String,
+    mode: String,
+    interviewLink: String,
+    notes: String
+  },
+  interviewFeedback: {
+    recommendation: String,
+    comments: String,
+    updatedAt: Date
+  },
+  aiScore: Number,
+  score: Number,
+  missingSkills: { type: [String], default: [] },
+  statusHistory: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  updatedAt: Date,
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -153,6 +179,11 @@ const signRefreshToken = (user) => {
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
 };
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 // Basic middleware
 app.use(express.json());
@@ -217,24 +248,144 @@ app.get('/', (req, res) => {
   res.json({ message: 'ATS Basic Server Running', status: 'OK' });
 });
 
+const createApplicationRecord = async ({ payload, file, authUserId }) => {
+  const jobId = String(payload.jobId || payload.job || '').trim();
+  let resolvedTitle = String(payload.jobTitle || payload.position || '').trim();
+
+  if (!resolvedTitle && jobId) {
+    const matchedJob = await Job.findById(jobId).lean();
+    resolvedTitle = matchedJob?.title || '';
+  }
+
+  const nextStatus = String(payload.status || '').trim().toLowerCase() || 'applied';
+  const statusHistory = [
+    {
+      status: nextStatus,
+      timestamp: new Date(),
+      source: 'candidate'
+    }
+  ];
+
+  const doc = await Application.create({
+    name: payload.name,
+    candidateName: payload.name,
+    email: payload.email,
+    candidateEmail: payload.email,
+    phone: payload.phone || '',
+    userId: authUserId || payload.userId || '',
+    jobId,
+    jobTitle: resolvedTitle || 'Unknown Role',
+    resumeFilename: file?.originalname || payload.resumeFilename || '',
+    resumeUrl: payload.resumeUrl || '',
+    position: resolvedTitle || payload.position || 'Unknown Role',
+    experience: payload.experience || '',
+    status: nextStatus,
+    appliedDate: new Date(),
+    statusHistory,
+    aiScore: Number(payload.aiScore || 0),
+    score: Number(payload.score || 0),
+    updatedAt: new Date(),
+    createdAt: new Date()
+  });
+
+  return doc;
+};
+
 // Basic application endpoint
 app.post('/api/applicants/apply', async (req, res) => {
   console.log('📝 Application received:', req.body);
   try {
-    const application = new Application(req.body);
-    await application.save();
-    
-    res.json({ 
-      success: true, 
+    const application = await createApplicationRecord({
+      payload: req.body || {},
+      file: null,
+      authUserId: ''
+    });
+
+    res.json({
+      success: true,
       message: 'Application submitted successfully',
-      data: application 
+      data: application
     });
   } catch (error) {
     console.error('Error saving application:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to submit application' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit application'
     });
+  }
+});
+
+app.post('/api/applications/apply', upload.single('resume'), async (req, res) => {
+  try {
+    const authCheck = verifyAccessToken(req);
+    const authUserId = authCheck.ok ? String(authCheck.decoded.id || '') : '';
+    const payload = req.body || {};
+
+    if (!payload.name || !payload.email || !payload.jobId) {
+      return res.status(400).json({ success: false, message: 'name, email and jobId are required' });
+    }
+
+    const application = await createApplicationRecord({
+      payload,
+      file: req.file || null,
+      authUserId
+    });
+
+    return res.json({
+      success: true,
+      message: 'Application submitted successfully',
+      data: application
+    });
+  } catch (error) {
+    console.error('Error creating application:', error);
+    return res.status(500).json({ success: false, message: 'Failed to submit application' });
+  }
+});
+
+app.post('/api/jobs/apply', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.auth.id).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const payload = {
+      name: user.name || req.body?.name || 'Candidate',
+      email: user.email || req.body?.email,
+      phone: user.phone || req.body?.phone || '',
+      jobId: req.body?.jobId,
+      resumeUrl: req.body?.resumeUrl || user?.resume?.url || '',
+      experience: user.experience || '',
+      status: 'applied'
+    };
+
+    if (!payload.jobId || !payload.email) {
+      return res.status(400).json({ success: false, message: 'jobId is required' });
+    }
+
+    const alreadyApplied = await Application.findOne({
+      jobId: String(payload.jobId),
+      $or: [
+        { userId: String(user._id) },
+        { email: String(user.email).toLowerCase() }
+      ],
+      status: { $ne: 'withdrawn' }
+    }).lean();
+
+    if (alreadyApplied) {
+      return res.status(409).json({ success: false, message: 'You already applied to this job' });
+    }
+
+    const application = await createApplicationRecord({
+      payload,
+      file: null,
+      authUserId: String(user._id)
+    });
+
+    return res.json({ success: true, message: 'Application submitted successfully', data: application });
+  } catch (error) {
+    console.error('Error in quick apply:', error);
+    return res.status(500).json({ success: false, message: 'Failed to apply for job' });
   }
 });
 
