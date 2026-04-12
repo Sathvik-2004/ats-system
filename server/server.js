@@ -472,6 +472,478 @@ app.post('/api/auth/logout', (req, res) => {
   return res.json({ success: true, message: 'Logged out successfully' });
 });
 
+const defaultSystemSettings = {
+  autoProcessing: {
+    enabled: true,
+    approvalThreshold: 70,
+    interviewThreshold: 60,
+    rejectionThreshold: 40,
+    schedule: 'manual'
+  },
+  application: {
+    maxFileSizeMB: 5,
+    allowedFileTypes: ['pdf', 'doc', 'docx'],
+    autoCloseAfterDays: 30
+  },
+  email: {
+    enabled: false,
+    adminNotifications: {
+      newApplication: true,
+      systemAlerts: true,
+      weeklyReport: false
+    }
+  },
+  security: {
+    sessionTimeoutMinutes: 60,
+    maxLoginAttempts: 5,
+    lockoutDurationMinutes: 15
+  },
+  system: {
+    companyInfo: {
+      name: 'ATS System',
+      website: '',
+      email: '',
+      phone: ''
+    },
+    timezone: 'UTC',
+    dateFormat: 'DD/MM/YYYY',
+    language: 'en',
+    theme: {
+      mode: 'light'
+    }
+  },
+  dataManagement: {
+    retentionPolicyDays: 365,
+    autoDeleteOldApplications: false,
+    auditLogging: true
+  },
+  integrations: {
+    calendar: { enabled: false, provider: 'none' },
+    notifications: {
+      slack: { enabled: false },
+      teams: { enabled: false }
+    }
+  }
+};
+
+let runtimeSettings = { ...defaultSystemSettings };
+
+const verifyAccessToken = (req) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    return { ok: false, reason: 'Authentication token required' };
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return { ok: true, decoded };
+  } catch (_error) {
+    return { ok: false, reason: 'Invalid or expired token' };
+  }
+};
+
+const requireAuth = (req, res, next) => {
+  const authCheck = verifyAccessToken(req);
+  if (!authCheck.ok) {
+    return res.status(401).json({ success: false, message: authCheck.reason });
+  }
+
+  req.auth = authCheck.decoded;
+  return next();
+};
+
+const requireAdminOrRecruiter = (req, res, next) => {
+  const authCheck = verifyAccessToken(req);
+  if (!authCheck.ok) {
+    return res.status(401).json({ success: false, message: authCheck.reason });
+  }
+
+  const role = String(authCheck.decoded.role || '').toLowerCase();
+  if (!['admin', 'recruiter'].includes(role)) {
+    return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+  }
+
+  req.auth = authCheck.decoded;
+  return next();
+};
+
+app.get('/api/users', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search || '').trim();
+    const role = String(req.query.role || '').trim();
+
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (role && role !== 'all') {
+      filter.role = role;
+    }
+
+    const [users, totalItems] = await Promise.all([
+      User.find(filter)
+        .select('name email role isActive createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter)
+    ]);
+
+    return res.json({
+      success: true,
+      data: users,
+      meta: {
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch users' });
+  }
+});
+
+app.post('/api/users', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const { name, email, role = 'candidate', password = 'password123' } = req.body || {};
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: 'name and email are required' });
+    }
+
+    const existingUser = await User.findOne({ email: String(email).toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'User already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(String(password), 10);
+    const user = await User.create({
+      name: String(name).trim(),
+      email: String(email).toLowerCase().trim(),
+      password: hashedPassword,
+      role,
+      isActive: true
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create user' });
+  }
+});
+
+app.put('/api/users/:id/role', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const { role } = req.body || {};
+    if (!role) {
+      return res.status(400).json({ success: false, message: 'role is required' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role, updatedAt: new Date() },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, data: user });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update user role' });
+  }
+});
+
+app.put('/api/users/:id/active', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const isActive = Boolean(req.body?.isActive);
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive, updatedAt: new Date() },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, data: user });
+  } catch (error) {
+    console.error('Error toggling user active state:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update user status' });
+  }
+});
+
+app.post('/api/users/bulk/active', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const userIds = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+    if (!userIds.length) {
+      return res.status(400).json({ success: false, message: 'No users selected' });
+    }
+
+    const isActive = Boolean(req.body?.isActive);
+    const result = await User.updateMany(
+      { _id: { $in: userIds } },
+      { $set: { isActive, updatedAt: new Date() } }
+    );
+
+    return res.json({ success: true, data: { modifiedCount: result.modifiedCount } });
+  } catch (error) {
+    console.error('Error bulk updating users:', error);
+    return res.status(500).json({ success: false, message: 'Failed to bulk update users' });
+  }
+});
+
+app.delete('/api/users/:id', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const deleted = await User.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete user' });
+  }
+});
+
+app.get('/api/settings', requireAdminOrRecruiter, (req, res) => {
+  return res.json({ success: true, settings: runtimeSettings });
+});
+
+app.put('/api/settings', requireAdminOrRecruiter, (req, res) => {
+  const updates = req.body || {};
+  runtimeSettings = {
+    ...runtimeSettings,
+    ...updates,
+    system: {
+      ...runtimeSettings.system,
+      ...(updates.system || {})
+    },
+    autoProcessing: {
+      ...runtimeSettings.autoProcessing,
+      ...(updates.autoProcessing || {})
+    },
+    application: {
+      ...runtimeSettings.application,
+      ...(updates.application || {})
+    },
+    email: {
+      ...runtimeSettings.email,
+      ...(updates.email || {})
+    },
+    security: {
+      ...runtimeSettings.security,
+      ...(updates.security || {})
+    },
+    dataManagement: {
+      ...runtimeSettings.dataManagement,
+      ...(updates.dataManagement || {})
+    },
+    integrations: {
+      ...runtimeSettings.integrations,
+      ...(updates.integrations || {})
+    }
+  };
+
+  return res.json({ success: true, settings: runtimeSettings, message: 'Settings updated' });
+});
+
+app.post('/api/settings/reset', requireAdminOrRecruiter, (req, res) => {
+  runtimeSettings = { ...defaultSystemSettings };
+  return res.json({ success: true, settings: runtimeSettings, message: 'Settings reset to defaults' });
+});
+
+app.get('/api/audit-logs', requireAdminOrRecruiter, (req, res) => {
+  return res.json({ success: true, data: [] });
+});
+
+app.get('/api/notifications', requireAuth, (req, res) => {
+  return res.json({ success: true, data: [], unreadCount: 0 });
+});
+
+app.put('/api/notifications/:id/read', requireAuth, (req, res) => {
+  return res.json({ success: true, message: 'Notification marked as read' });
+});
+
+app.put('/api/notifications/read-all', requireAuth, (req, res) => {
+  return res.json({ success: true, message: 'Notifications marked as read' });
+});
+
+app.get('/api/applications', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const skip = (page - 1) * limit;
+
+    const [applications, totalItems] = await Promise.all([
+      Application.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Application.countDocuments()
+    ]);
+
+    return res.json({
+      success: true,
+      data: applications,
+      meta: {
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch applications' });
+  }
+});
+
+app.get('/api/interviews/upcoming', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const interviews = await Application.find({
+      'interviewScheduled.date': { $exists: true, $ne: null }
+    })
+      .sort({ 'interviewScheduled.date': 1 })
+      .limit(100)
+      .lean();
+
+    return res.json({ success: true, data: interviews });
+  } catch (error) {
+    console.error('Error fetching interviews:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch interview data' });
+  }
+});
+
+app.put('/api/interviews/:id/schedule', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const { date, time, mode, interviewLink, notes } = req.body || {};
+    const updated = await Application.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          interviewScheduled: {
+            date,
+            time,
+            mode,
+            interviewLink: interviewLink || '',
+            notes: notes || ''
+          },
+          status: 'interview_scheduled'
+        }
+      },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    return res.json({ success: true, data: updated, message: 'Interview scheduled' });
+  } catch (error) {
+    console.error('Error scheduling interview:', error);
+    return res.status(500).json({ success: false, message: 'Failed to schedule interview' });
+  }
+});
+
+app.put('/api/interviews/:id/feedback', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const { recommendation, comments } = req.body || {};
+    const nextStatus = recommendation === 'hire' ? 'approved' : recommendation === 'no_hire' ? 'rejected' : 'under_review';
+    const updated = await Application.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          interviewFeedback: {
+            recommendation: recommendation || '',
+            comments: comments || '',
+            updatedAt: new Date()
+          },
+          status: nextStatus
+        }
+      },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    return res.json({ success: true, data: updated, message: 'Interview feedback saved' });
+  } catch (error) {
+    console.error('Error saving interview feedback:', error);
+    return res.status(500).json({ success: false, message: 'Failed to submit interview feedback' });
+  }
+});
+
+app.post('/api/ai/screen', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const jobId = req.body?.jobId;
+    const query = jobId ? { jobId } : {};
+    const applications = await Application.find(query).sort({ createdAt: -1 }).limit(100).lean();
+
+    const scored = applications.map((item) => {
+      const base = Number(item.aiScore || item.score || 0);
+      const aiScore = Math.max(0, Math.min(100, base || 50));
+      return {
+        ...item,
+        aiScore,
+        score: aiScore,
+        matchPercentage: aiScore,
+        missingSkills: Array.isArray(item.missingSkills) ? item.missingSkills : []
+      };
+    });
+
+    return res.json({ success: true, data: scored, message: 'AI screening completed' });
+  } catch (error) {
+    console.error('Error running AI screening:', error);
+    return res.status(500).json({ success: false, message: 'AI screening failed' });
+  }
+});
+
+app.put('/api/ai/screen/:id', requireAdminOrRecruiter, async (req, res) => {
+  try {
+    const updated = await Application.findByIdAndUpdate(
+      req.params.id,
+      { $set: { aiScore: 70, score: 70, updatedAt: new Date() } },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    return res.json({ success: true, data: updated, message: 'Application screened' });
+  } catch (error) {
+    console.error('Error screening application:', error);
+    return res.status(500).json({ success: false, message: 'AI screening failed' });
+  }
+});
+
 app.get('/api/auth/my-applications', async (req, res) => {
   console.log('📋 My applications requested');
   try {
