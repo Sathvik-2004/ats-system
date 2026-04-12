@@ -262,8 +262,8 @@ function App() {
               {userType === 'admin' && (
                 <>
                   <Route path="/admin" element={<AdminOverviewDashboard />} />
-                  <Route path="/admin/applications" element={<AdminDashboard />} />
-                  <Route path="/admin/applications-management" element={<ApplicationsTable />} />
+                  <Route path="/admin/applications" element={<ApplicationsTable />} />
+                  <Route path="/admin/applications-management" element={<AdminDashboard />} />
                   <Route path="/admin/panel" element={<AdminPanel />} />
                   <Route path="/admin/analytics" element={<AdminAnalytics />} />
                   <Route path="/admin/analytics-dashboard" element={<AdvancedAnalyticsDashboard />} />
